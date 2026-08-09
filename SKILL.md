@@ -22,6 +22,7 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
 - 维护动作：改完 skill 内容后 `git add -A && git commit -m "说明" && git push`（在 skill 目录内执行）
 - 别人安装：`hermes skills install github.com:Vegetableadog/hermes-recall`
 - 发布/更新流程与 gh 认证坑见 skill `skill-publishing`
+- **本 skill 双平台发布实例细节**（GitHub 仓库 + SkillHub skillId 149046、SkillHub frontmatter 字段要求、LICENSE 排除、Windows 打包坑、token 安全）见 `references/publishing.md`
 
 ## 安装与配置
 - 本 skill 自带完整工具：`scripts/recall.py`（核心 CLI）、`scripts/recall_scheduler.py`（提醒调度包装）、`scripts/validate_recall.py`（数据校验）；Python 3.10+ 标准库即可，无第三方依赖

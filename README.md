@@ -29,6 +29,19 @@ hermes skills install <identifier>
 git clone <repo-url> <HERMES_HOME>/skills/<category>/hermes-recall
 ```
 
+方式三：SkillHub（国内源，更快）
+
+```
+skillhub search hermes-recall
+skillhub install hermes-recall --namespace user_deef713e --dir <HERMES_HOME>/skills
+```
+
+## 多平台发布
+
+- GitHub（国际）：https://github.com/Vegetableadog/hermes-recall
+- SkillHub（国内）：skillhub.cn · skillId 149046（含评论区，欢迎反馈意见）
+- 双平台更新保持同步：GitHub 走 git push，SkillHub 走 skillhub publish
+
 ## 配置
 
 ### 数据目录（可选，默认即可用）
