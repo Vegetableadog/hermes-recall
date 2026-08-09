@@ -2,7 +2,7 @@
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
-version: 1.0.1
+version: 1.0.2
 description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与提醒时间解析，经 recall.py 操作。
 ---
 
