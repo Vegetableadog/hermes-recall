@@ -1,5 +1,8 @@
 ---
 name: hermes-recall
+slug: hermes-recall
+displayName: Hermes Recall（回响）
+version: 1.0.1
 description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与提醒时间解析，经 recall.py 操作。
 ---
 
@@ -13,6 +16,12 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
 - 用户搜索过去的记录（「搜索 XX」「我之前记过 XX 吗」）
 - 用户改状态（「XX 做完了」「删掉 XX」）
 - 用户提到需要定时提醒的事项
+
+## 发布与维护（已开源）
+- 开源仓库：https://github.com/Vegetableadog/hermes-recall（公开，MIT）；本 skill 目录即 git 仓库（.git 存在，不影响加载）
+- 维护动作：改完 skill 内容后 `git add -A && git commit -m "说明" && git push`（在 skill 目录内执行）
+- 别人安装：`hermes skills install github.com:Vegetableadog/hermes-recall`
+- 发布/更新流程与 gh 认证坑见 skill `skill-publishing`
 
 ## 安装与配置
 - 本 skill 自带完整工具：`scripts/recall.py`（核心 CLI）、`scripts/recall_scheduler.py`（提醒调度包装）、`scripts/validate_recall.py`（数据校验）；Python 3.10+ 标准库即可，无第三方依赖
