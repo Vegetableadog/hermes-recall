@@ -2,7 +2,7 @@
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
-version: 1.0.2
+version: 1.0.3
 description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与提醒时间解析，经 recall.py 操作。
 ---
 
@@ -22,11 +22,12 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
 - 维护动作：改完 skill 内容后 `git add -A && git commit -m "说明" && git push`（在 skill 目录内执行）
 - 别人安装：`hermes skills install github.com:Vegetableadog/hermes-recall`
 - 发布/更新流程与 gh 认证坑见 skill `skill-publishing`
-- **本 skill 双平台发布实例细节**（GitHub 仓库 + SkillHub skillId 149046、SkillHub frontmatter 字段要求、LICENSE 排除、Windows 打包坑、token 安全）见 `references/publishing.md`
+- **skill 生态运维**：双平台发布实例细节（SkillHub frontmatter 要求/LICENSE 排除/token 安全）+ **安装第三方 skill 绕行**（skills.sh 索引失效/URL 安装报错 → GitHub API 定位 + zip 解压）见 `references/publishing.md`
 
 ## 安装与配置
 - 本 skill 自带完整工具：`scripts/recall.py`（核心 CLI）、`scripts/recall_scheduler.py`（提醒调度包装）、`scripts/validate_recall.py`（数据校验）；Python 3.10+ 标准库即可，无第三方依赖
 - 本 skill 为可分发包：README.md（安装/配置/上手）与 LICENSE（MIT）随包；分发化改造与 GitHub 发布流程见 skill `hermes-skill-publishing`
+- 正式项目文档：`docs/01-project-overview.md` 至 `docs/08-deployment-operations.md`；重大架构决策见 `docs/adr/README.md`；历史原稿见 `docs/archive/README.md`
 - 数据目录解析优先级：
   1. 环境变量 `HERMES_RECALL_DIR`（显式指定，推荐）
   2. 本机既有部署 `E:\HermesData\recall`（Windows 兼容早期版本）
@@ -83,10 +84,12 @@ python recall.py stats                # 统计
 
 ## 提醒系统（统一 Scheduler，不逐条建 cron）
 1. 创建统一调度任务（每 15 分钟检查）：
+   - 先将 `scripts/recall_scheduler.py` 部署到 `<HERMES_HOME>/scripts/recall_scheduler.py`；
+   - 再创建 no-agent cron：
    ```
-   hermes cron add --schedule "every 15m" --script <skill_dir>/scripts/recall_scheduler.py --deliver <平台>:<chat_id>
+   hermes cron create "every 15m" --script recall_scheduler.py --no-agent --deliver <平台>:<chat_id>
    ```
-   （无提醒平台可先 `--deliver local`，配置飞书后再改）
+   （无提醒平台可先 `--deliver local`，配置飞书后再改；完整步骤见 `docs/08-deployment-operations.md`）
 2. 调度语义：脚本输出友好提醒文本 → cron deliver 投递 → 置 `reminder_status=sent`；无到期提醒时零输出（静默）
 3. 筛选条件：`needs_reminder=true` AND `remind_at <= 当前时间` AND `reminder_status=pending`
 4. **投递验证**：cron `Result: ok` 不代表送达——查 cron 的 `last_delivery_error`（null 才算送达）；失败时 `update <id> --reminder-status pending` 重置重试
@@ -103,7 +106,7 @@ python recall.py stats                # 统计
 - 任务 `status`（待处理/进行中/已完成/已归档）与 `reminder_status`（pending/sent/failed/cancelled）是两个独立状态，不要混
 - 绝不直接编辑 recall.json / recall_view.md；所有修改走 recall.py
 - id 格式 `recall_YYYYMMDD_xxxxxx`（随机 6 位 hex），由脚本生成，不要自定义；旧版序号格式 id 保留不变；id/created_at 不可修改（update 无对应参数）
-- 版本号统一：项目版本 = recall.json 顶层 version = 记录级 schema_version（当前 1.01）；数据格式升级时同步递增三者并跑 `recall.py upgrade`
+- 版本分为产品基线 `v1.0`、Skill 发布版本 `1.0.3` 和数据 Schema `1.01`；三者含义不同，数据格式升级时更新 Schema、迁移逻辑和测试并运行 `recall.py upgrade`
 - 提醒时间判断宁缺毋滥：没有明确时间就不设 needs_reminder
 - `reminder_status` Schema 允许值仅 pending/sent/failed/cancelled——非提醒记录的默认值也必须是 `pending`（无 "none" 值）；存量数据出现非法值用 `update <id> --reminder-status pending` 修复，手动取消提醒用 `--reminder-status cancelled`
 - git-bash 里调 Windows python 传脚本/文件路径须用 `E:/...` 形式；`/e/...` 会被 python 误解析成 `C:\e\...` 报 No such file

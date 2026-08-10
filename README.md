@@ -4,6 +4,23 @@
 
 > Recall = Hermes 对用户过去想法、计划和信息的回响。
 
+## 项目文档
+
+正式项目文档位于 `docs/`：
+
+- [项目总览与当前状态](docs/01-project-overview.md)
+- [系统架构](docs/02-system-architecture.md)
+- [数据模型](docs/03-data-model.md)
+- [开发路线图](docs/04-development-roadmap.md)
+- [测试计划](docs/05-test-plan.md)
+- [产品需求](docs/06-product-requirements.md)
+- [Reminder 与 Notification 设计](docs/07-reminder-notification.md)
+- [部署与运维](docs/08-deployment-operations.md)
+- [架构决策记录](docs/adr/README.md)
+- [历史设计原稿归档](docs/archive/README.md)
+
+正式文档区分 `Current`、`Target`、`Idea` 和 `Historical`。原始 Word 文档只作为历史输入，不代表当前功能已经实现。
+
 ## 功能特性
 
 - 📝 **语义理解**：自动分类（工作待办/生活日常/想法灵感/学习笔记/收藏）+ 自动标签，理解上下文而非关键词匹配
@@ -64,9 +81,13 @@ skillhub install hermes-recall --namespace user_deef713e --dir <HERMES_HOME>/ski
 
 ### 创建统一提醒调度（可选）
 
+先将通用 wrapper 复制到 `<HERMES_HOME>/scripts/recall_scheduler.py`，再创建任务：
+
 ```
-hermes cron add --schedule "every 15m" --script <skill_dir>/scripts/recall_scheduler.py --deliver local
+hermes cron create "every 15m" --script recall_scheduler.py --no-agent --deliver local
 ```
+
+平台投递、显式目标和本机部署步骤见 [部署与运维](docs/08-deployment-operations.md)。
 
 ## 快速上手
 
@@ -92,13 +113,14 @@ python <skill_dir>/scripts/validate_recall.py             # 数据完整性检�
 
 ## 测试
 
-已通过验收测试（详见设计文档）：
-- Test 01 数据结构：CRUD 生命周期、Schema 合规
-- Test 02 智能分类：5 用例 + 边界测试（100% 语义判定）
-- Test 03 提醒系统：时间语义 + Scheduler 端到端（飞书实收）
-- Test 04 Markdown View：渲染 + 数据层解耦验证
-- Test 05 数据迁移：旧格式 → JSON（字段完整率 100%）
-- Schema 版本升级测试：新记录全字段 / 历史数据自动补齐
+当前仓库已有可重复执行的基础检查：
+
+- `validate_recall.py`：JSON、ID、分类、状态和提醒字段基础校验；
+- `py_compile`：三个 Python 脚本语法检查。
+
+历史设计阶段曾经执行过 CRUD、分类、Reminder、Markdown View、Migration 和 Schema upgrade 的人工验收，但仓库当前还没有 `pytest` 测试目录、CI 或完整可重复回归套件。因此历史验收不能等同于当前自动化测试覆盖。
+
+完整测试范围、163 个测试用例、执行状态和发布门禁见 [测试计划](docs/05-test-plan.md)。真实 Feishu 端到端测试需要隔离测试数据和用户明确同意。
 
 ## 目录结构
 
@@ -109,6 +131,7 @@ hermes-recall/
 ├── LICENSE
 ├── references/
 │   └── feishu-gateway.md       # 飞书通道排障指南
+├── docs/                       # 正式项目文档、ADR 和历史原稿归档
 └── scripts/
     ├── recall.py               # 核心 CLI（纯标准库）
     ├── recall_scheduler.py     # 提醒调度包装（cron no_agent 用）
@@ -117,8 +140,13 @@ hermes-recall/
 
 ## 版本
 
-统一版本号：项目 = recall.json 顶层 version = 记录级 schema_version = **1.01**
-（升级数据格式时同步递增三者并运行 `recall.py upgrade`）
+Recall 分别管理三类版本：
+
+- 产品基线版本：`v1.0`，表示用户可使用的功能阶段；
+- Skill 发布版本：`1.0.3`，表示 GitHub/SkillHub 安装包版本；
+- 数据 Schema 版本：`1.01`，表示 `recall.json` 数据结构版本。
+
+三者不要求每次同时变化。升级数据格式时，更新 Schema、迁移逻辑和测试，并运行 `recall.py upgrade`；只修改文档或发布说明时，不自动升级产品或 Schema 版本。
 
 ## License
 

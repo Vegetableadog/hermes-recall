@@ -1,36 +1,235 @@
 # 发布与分发维护（GitHub + SkillHub）
 
-Hermes Recall 已双平台发布。修改 skill 内容后按本文件同步，保持两平台与本地一致。
+Hermes Recall 使用同一个 Git 仓库作为源码和正式文档的事实来源，并同步发布到 GitHub 与 SkillHub。
 
-## GitHub（国际）
+本文档只记录可公开复用的维护流程，不保存账号登录态、Token 路径、真实 namespace、用户数据或本机凭据。
 
-- 仓库: https://github.com/Vegetableadog/hermes-recall（公开，MIT）
-- skill 目录本身就是 git 仓库: `E:\HermesAgent\skills\productivity\hermes-recall`（.git 在其中，Hermes 加载不受影响）
-- 更新流程: `cd <skill目录> && git add -A && git commit -m "说明" && git push`
-- gh CLI: `C:\Program Files\GitHub CLI`（登录态存 keyring，账号 Vegetableadog，git 协议 https）
-- 新手用户登录 gh 走 `gh auth login` 交互流程（GitHub.com → HTTPS → Yes → web browser → 设备码授权）；**浏览器登录 ≠ gh CLI 登录**，两者独立
+## 1. 版本边界
 
-## SkillHub（国内，腾讯）
+Recall 分别管理：
 
-- CLI: `~/.local/bin/skillhub`（登录态在 `~/.skillhub/config.json`，账号 @user_deef713e，skillId 149046）
-- 更新流程: `skillhub publish <skill目录或zip> [--changelog "本次变更"]`
-- 平台要求（实测踩坑）:
-  * SKILL.md frontmatter **必须含** `slug` / `displayName` / `version`（Hermes 的 `name` 不被识别；逐个补字段直到 dry-run 通过）
-  * **不允许 LICENSE 文件**（报 400 "不允许的文件类型"）→ 发布时用 zip 方式排除 LICENSE 和 .git：
-    ```
-    python -c "import zipfile; ..."  # 或用 tar --exclude 打包后转 zip
-    ```
-  * 发布前预检: `skillhub publish --dry-run <路径>`（不需要 token）
-  * 签名验证: `skillhub verify "<slug>@<version>" --zip <zip>`；发布后平台索引同步有延迟，立即 verify/search 可能查不到，属正常
-  * 收集用户反馈: `skillhub comment`（平台自带评论区）
+- 产品基线版本，例如 `v1.0`；
+- Skill 发布版本，例如当前 `1.0.3`；
+- 数据 Schema 版本，例如当前 `1.01`。
 
-## Windows 特定坑（本机已验证的修复）
+SkillHub 使用 `SKILL.md` frontmatter 的 Skill 发布版本。它不等同于产品版本或数据 Schema。
 
-- skillhub 包装脚本（~/.local/bin/skillhub）原版把 MSYS 路径传给 Windows python 报错 → 本机版已修复为显式 `D:/exploitation/python3.12/python.exe` + `C:/Users/Administrator/.skillhub/...`（Windows 风格路径）
-- git-bash 里 `curl -o <MSYS路径>` 报 `exit 23`（写入失败）→ 用重定向 `curl ... > 文件` 即可；skillhub 安装脚本内部用 `curl -o` + mktemp 的 MSYS 临时路径会失败 → 手动下载 latest.tar.gz 解压出 `cli/` 目录后重跑脚本走"本地 kit"路径
-- 平台版本号用点分隔（frontmatter `version: 1.0.1`），与系统统一版本号 1.01 对应
+只修改文档、安装说明或发布配置时，可以提升 Skill patch 版本，但不自动提升产品或 Schema 版本。
 
-## 用户账号信息（用于发布）
+## 2. 发布前门禁
 
-- GitHub: Vegetableadog（gh 已登录）
-- SkillHub: user_deef713e（token 存本地 ~/.skillhub/config.json，**不要**让用户再次粘贴 token；token 是敏感凭证不进记忆/日志）
+发布前确认：
+
+- `SKILL.md` frontmatter 有效；
+- `name`、`slug`、`displayName`、`version` 和 `description` 正确；
+- README、SKILL 和正式文档中的当前版本一致；
+- Python 脚本编译通过；
+- 基础 validator 通过；
+- `git diff --check` 通过；
+- 用户数据、History、`.env`、Webhook、Token 和平台身份未被 Git 跟踪；
+- 发布包不包含 `.git`、缓存或本地部署文件；
+- 变更已经完成人工验收。
+
+完整发布门禁见 `../docs/05-test-plan.md` 和 `../docs/08-deployment-operations.md`。
+
+## 3. GitHub 发布
+
+公开仓库：
+
+```text
+https://github.com/Vegetableadog/hermes-recall
+```
+
+提交前：
+
+```bash
+git status --short --branch
+git diff --check
+git diff --cached --check
+```
+
+只 stage 当前任务文件：
+
+```bash
+git add -- <file...>
+git commit -m "<change-summary>"
+git push origin main
+```
+
+推送后确认：
+
+```bash
+git rev-parse HEAD
+git rev-parse origin/main
+```
+
+两者必须一致。
+
+### GitHub 认证
+
+浏览器登录 GitHub 不等于 `gh` CLI 已登录。需要使用：
+
+```bash
+gh auth login
+gh auth status
+```
+
+Token 属于敏感凭据，不写入仓库、文档、Issue 或终端日志。
+
+## 4. SkillHub 发布
+
+### 4.1 Frontmatter
+
+当前 SkillHub 发布要求 `SKILL.md` frontmatter 至少包含：
+
+```yaml
+name: hermes-recall
+slug: hermes-recall
+displayName: Hermes Recall（回响）
+version: 1.0.3
+description: Use when ...
+```
+
+发布要求可能变化，应以当前 SkillHub dry-run 结果为准。
+
+### 4.2 发布包
+
+发布包应包含：
+
+- `SKILL.md`；
+- `README.md`；
+- `scripts/`；
+- `references/`；
+- 需要随 Skill 分发的正式文档。
+
+发布包不得包含：
+
+- `.git/`；
+- 用户数据；
+- `.env`；
+- 本机 cron job；
+- 本机绝对路径配置；
+- 缓存和临时文件；
+- Token 或登录配置。
+
+当前维护经验表明 SkillHub 可能拒绝 `LICENSE` 等文件类型。不要从 GitHub 仓库删除 LICENSE；只在 SkillHub 发布包中按平台要求排除。
+
+### 4.3 Dry-run
+
+```bash
+skillhub publish --dry-run <package-or-skill-dir>
+```
+
+通过后再发布：
+
+```bash
+skillhub publish <package-or-skill-dir> \
+  --changelog "<change-summary>"
+```
+
+发布后可使用平台提供的 verify、search 或安装命令检查。索引同步可能有延迟，不能只凭发布后立即搜索不到就判断失败。
+
+## 5. Windows 与 MSYS 路径
+
+Git Bash 中调用 Windows 程序时：
+
+- shell 内部可以使用 `/e/...`；
+- 传给 Windows Python 或其他 Windows CLI 时优先使用 `E:/...`；
+- 包装脚本应根据当前环境解析路径，不在公开文档中固化用户名或解释器安装位置；
+- `curl -o` 写入 MSYS 临时路径失败时，可以改用 shell 重定向并检查退出码；
+- 打包前列出 archive 内容，确认没有多余根目录或本机文件。
+
+## 6. 安装第三方 Skill 的故障绕行
+
+`hermes skills install <identifier>` 可能因为注册源索引过期、仓库结构变化或 URL 处理限制而失败。
+
+### 6.1 先做安全检查
+
+安装第三方 Skill 前应：
+
+- 确认仓库所有者和许可证；
+- 查看 `SKILL.md` 和脚本；
+- 检查是否读取凭据、执行网络请求或修改系统文件；
+- 使用 Skill 安全审查流程；
+- 不因安装失败直接使用 `--force` 绕过安全结论。
+
+### 6.2 GitHub API 定位真实路径
+
+注册源路径与仓库真实结构不一致时，可以查询仓库树，定位 `SKILL.md`：
+
+```bash
+curl -s \
+  "https://api.github.com/repos/OWNER/REPO/git/trees/main?recursive=1"
+```
+
+不要把未经审查的远程文件直接执行。
+
+### 6.3 下载并提取目标 Skill
+
+1. 下载仓库归档；
+2. 列出归档内容，确认根目录名称和大小写；
+3. 只提取目标 Skill 目录；
+4. 跳过 `.git`、CI、缓存和无关文件；
+5. 安装到当前 `<HERMES_HOME>/skills/<category>/<name>/`；
+6. 使用 `hermes skills list` 和 `hermes skills audit` 检查；
+7. 在隔离环境完成烟测。
+
+不要在不确认目标目录内容时直接清空或覆盖已有 Skill。
+
+### 6.4 SkillHub 安装
+
+通用形式：
+
+```bash
+skillhub install <slug> \
+  --namespace <namespace> \
+  --dir <HERMES_HOME>/skills
+```
+
+namespace 和版本以发布页为准，不在通用文档中固化个人账号。
+
+## 7. 双平台同步顺序
+
+建议顺序：
+
+1. 本地修改；
+2. 测试和隐私扫描；
+3. 用户验收；
+4. Git commit；
+5. GitHub push；
+6. 远端核验；
+7. SkillHub dry-run；
+8. SkillHub publish；
+9. 隔离安装烟测；
+10. 记录发布结果。
+
+GitHub 是源码事实来源。SkillHub 是分发渠道，不单独维护另一份代码。
+
+## 8. 常见问题
+
+### `Could not fetch ... from any source`
+
+可能是注册源索引路径过期或仓库结构变化。先定位真实 `SKILL.md`，再走安全审查和手动安装流程。
+
+### SkillHub 报不允许的文件类型
+
+按 dry-run 错误调整发布包，不删除 GitHub 仓库中的许可证和必要源文件。
+
+### 发布成功但搜索不到
+
+等待索引同步，再使用 verify 或直接安装指定版本检查。
+
+### GitHub 可以 push，但 `gh auth status` 未登录
+
+Git 凭据和 `gh` CLI 凭据是两套状态。push 成功不代表 `gh` API 命令可用。
+
+### 本地 Skill 可用，分发安装失败
+
+检查：
+
+- 是否硬编码本机路径；
+- 是否依赖本机环境变量或凭据；
+- scheduler 是否错误引用 Skill 内脚本路径；
+- 首次运行是否能创建数据目录；
+- 发布包是否漏掉 scripts/references/docs；
+- frontmatter 是否满足平台要求。
