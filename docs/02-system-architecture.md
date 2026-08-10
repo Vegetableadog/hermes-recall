@@ -467,7 +467,7 @@ Skill Repository ≠ User Data Directory
 
 目标架构分为四个主要层次：
 
-1. **Experience Layer**：面向用户的 Setup、默认配置、偏好和模式；
+1. **Experience Layer**：面向用户的自然语言意图、Setup、默认配置、偏好和模式；
 2. **Recall Core**：记录、结构化记忆、关联、查询、状态和历史；
 3. **Reminder & Notification Layer**：提醒事件、调度、路由、身份和 Provider；
 4. **Storage & Retrieval Layer**：JSON、SQLite、迁移、索引和 Vector Memory。
@@ -492,7 +492,7 @@ flowchart LR
     end
 
     subgraph Target[Target Architecture]
-        T1[Experience Layer<br/>Setup / Preferences / Modes]
+        T1[Experience Layer<br/>Intent / Setup / Preferences / Modes]
         T2[Recall Core<br/>Memory / Relation / Query]
         T3[Reminder Manager<br/>Lifecycle / Retry / Idempotency]
         T4[Notification Layer<br/>Routing / Identity / Providers]
@@ -520,6 +520,7 @@ flowchart LR
 
 目标职责：
 
+- Recall Intent Layer；
 - 首次安装和 Setup Wizard；
 - 默认配置；
 - 用户偏好；
@@ -527,7 +528,66 @@ flowchart LR
 - Personal Mode；
 - 隐藏 Provider、Identity、Schema 和 Migration 等内部概念。
 
-该层不能复制 Core 业务规则，只负责将用户选择转换为明确配置和命令。
+该层不能复制 Core 业务规则，只负责将用户意图和选择转换为明确、受约束的配置与命令。
+
+#### 10.3.1 Recall Intent Layer（Target，FEAT-V11-001）
+
+Recall Intent Layer 是产品 v1.1 的目标子组件，负责让“回响式表达”和现有直白表达进入同一条执行链。它不新增第二套 Core，也不直接持久化用户数据。
+
+```mermaid
+flowchart LR
+    U[用户自然语言]
+    I[Recall Intent Layer<br/>意图 / 目标 / 时间 / 风格]
+    C[受约束动作<br/>add / list / search / done / archive / delete / reminder]
+    R[Recall CLI / Core]
+    D[(JSON + History)]
+    F[用户反馈]
+
+    U --> I
+    I -->|高置信度且安全| C
+    I -->|歧义或破坏性操作| F
+    F -->|用户澄清或确认| I
+    C --> R
+    R --> D
+    R -->|结构化结果| I
+    I --> F
+```
+
+目标职责：
+
+- 识别新增、查看、搜索、完成、归档、删除和 Reminder 意图；
+- 从表达中分离交互引导语与需要保存的原始 `content`；
+- 解析目标记录、筛选条件和个人未来提醒时间；
+- 将“落幕”“归档”“删除”等语义映射为互不混淆的领域动作；
+- 在目标不唯一、动作不明确或置信度不足时请求澄清；
+- 对删除、批量状态变更等破坏性操作建立确认门；
+- 将 Core 返回结果渲染为明确、可扫描的回响式或直白反馈；
+- 区分个人 Reminder 与系统轮询、看门狗等自动化机制。
+
+边界约束：
+
+- Intent Layer 只能调用公开、受约束的 Recall 动作，不能直接编辑 JSON、History 或 Markdown View；
+- 回响式和直白表达必须共用同一组 Core 命令、校验和 History Event；
+- `style` 只影响反馈呈现，不进入 Record 事实字段，也不改变动作语义；
+- 原始 `content` 不得因反馈风格被总结、润色或文学化改写；
+- 查看操作默认只读；删除和批量变更不能仅凭置信度自动执行；
+- 明确时间解析仍必须满足 Reminder Contract，Intent Layer 不能绕过“无明确时间则不提醒”的规则；
+- 该层是 Experience Layer 的 Target 能力，不代表 v1.0 Current 已经支持完整词表和安全确认流程。
+
+建议的内部意图结果是稳定的结构化对象，而不是把自然语言直接拼接成 shell 命令。例如：
+
+```json
+{
+  "intent": "add",
+  "content": "周五下午整理项目复盘材料",
+  "target": null,
+  "reminder": null,
+  "style": "echo",
+  "requires_confirmation": false
+}
+```
+
+该对象只描述交互决策，不是新的持久化 Schema。字段名称和最终 Contract 应在实现前结合测试冻结。
 
 ### 10.4 Recall Core
 
@@ -602,7 +662,7 @@ Retrieval 结果不能未经验证自动覆盖主数据，只能用于查询、�
 2. Reminder Manager；
 3. Notification Provider；
 4. Retrieval Layer；
-5. Experience Layer。
+5. Experience Layer，其中先建立 Recall Intent Layer，再逐步补充 Setup、Preferences 与 Modes。
 
 ### 11.2 保持 CLI 兼容
 
