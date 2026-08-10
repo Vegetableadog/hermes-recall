@@ -1,0 +1,854 @@
+# Hermes Recall（回响）测试计划
+
+> 文档状态：Current + Target
+>
+> 状态核验日期：2026-08-10
+>
+> 当前产品基线：v1.0
+>
+> 当前数据 Schema：1.01
+
+## 1. 文档目的
+
+本文档定义 Hermes Recall 的测试范围、测试层级、环境隔离、用例结构、执行门禁、验收标准和结果报告方式。
+
+本文档用于：
+
+- 建立可重复执行的 v1.0 回归基线；
+- 区分当前已有检查、历史人工验收和计划补充的自动化测试；
+- 防止测试误改生产 Recall 数据；
+- 为 v1.1 及后续版本提供测试先行的开发门禁；
+- 将数据模型、Reminder、Migration、Notification 和隐私要求转化为可执行用例；
+- 统一“通过项 / 失败项 / 建议修复”的验收报告格式。
+
+测试计划不等于测试结果。用例只有在真实执行并保存结果后，才能标记为 Passed。
+
+## 2. 当前测试资产（Current）
+
+### 2.1 已存在的可重复检查
+
+当前仓库具备：
+
+1. `scripts/validate_recall.py`
+   - JSON 可解析；
+   - ID 唯一；
+   - `created_at` 存在；
+   - `category` 合法；
+   - `status` 合法；
+   - `reminder_status` 合法；
+   - `needs_reminder = true` 时 `remind_at` 非空。
+
+2. Python 语法编译检查
+   - `recall.py`；
+   - `recall_scheduler.py`；
+   - `validate_recall.py`。
+
+### 2.2 当前不存在的测试资产
+
+仓库当前没有：
+
+- `tests/` 目录；
+- `pytest` 测试文件；
+- `pytest.ini` 或 `pyproject.toml` 测试配置；
+- 自动化 CRUD 测试；
+- 自动化 Migration 测试；
+- 自动化 Reminder 端到端测试；
+- CI 测试工作流；
+- 每个发布版本对应的正式测试报告。
+
+### 2.3 历史验收声明的定位
+
+README 记录了数据结构、AI 分类、Reminder、Markdown View 和 Migration 等历史验收结果。这些结果说明相关流程曾被人工执行过，但由于缺少可重跑测试代码、固定测试夹具和逐次测试报告，不能等同于当前自动化回归覆盖。
+
+后续应保留历史事实，同时用新的可执行测试逐项建立证据。
+
+## 3. 测试目标
+
+### 3.1 功能正确性
+
+验证 Recall 的记录、查询、更新、完成、删除、视图、Migration、Upgrade 和 Reminder 行为符合正式文档。
+
+### 3.2 数据安全
+
+验证测试和升级不会丢失、污染或静默修改用户原始数据。
+
+### 3.3 兼容性
+
+验证旧 ID、旧 Record、旧 Markdown 和旧 Schema 能按明确规则继续读取或迁移。
+
+### 3.4 提醒可靠性
+
+验证到期筛选、静默调度、状态变化、失败处理和投递结果不会被错误解释。
+
+### 3.5 隐私与分发安全
+
+验证公开仓库、测试夹具、日志和错误输出不包含真实用户数据或通知凭据。
+
+### 3.6 可维护性
+
+让新增功能和缺陷修复遵循测试先行，并为重构提供稳定回归基线。
+
+## 4. 测试范围
+
+### 4.1 当前 v1.0 范围
+
+- CLI 命令；
+- `recall.json` Schema 1.01；
+- History Event；
+- Markdown View；
+- Markdown Migration；
+- Schema upgrade；
+- Reminder 到期筛选；
+- Scheduler 包装；
+- Gateway 输出模式；
+- webhook 备用模式；
+- 数据目录解析；
+- Validator；
+- 隐私和仓库分发边界。
+
+### 4.2 v1.1 准备范围
+
+- 结构化记忆字段 Contract；
+- 旧数据 Migration；
+- 版本标识一致性；
+- 完整 Record 校验；
+- 带时区时间约束；
+- v1.0 全量回归。
+
+### 4.3 当前不纳入通过判定
+
+以下能力尚未实现，不应在 v1.0 测试中伪造为 Passed：
+
+- 标准 Notification Provider Interface；
+- Telegram、Email、Discord、Mobile Push；
+- 自动 retry；
+- 平台 delivered 回执；
+- Weekly Review；
+- SQLite；
+- Vector Memory；
+- 语义搜索；
+- Simple Mode；
+- 多用户隔离。
+
+这些能力可以先定义 Target 测试，但在实现前状态必须是 Planned 或 Not Run。
+
+## 5. 测试类型与层级
+
+| 层级 | 目标 | 典型方式 | 是否允许访问外部平台 |
+|---|---|---|---:|
+| L0 静态检查 | 语法、格式、敏感信息 | `py_compile`、文档检查、秘密扫描 | 否 |
+| L1 单元测试 | 单函数、枚举、解析和状态规则 | `pytest`、临时文件 | 否 |
+| L2 组件测试 | CLI + 文件存储 + History + View | subprocess + 临时数据目录 | 否 |
+| L3 集成测试 | Scheduler、Gateway 输出、webhook 合约 | subprocess + 本地 fake server | 默认否 |
+| L4 端到端测试 | Hermes → cron → Gateway → Feishu | 隔离测试记录 + 明确人工确认 | 是 |
+| L5 人工验收 | 语义质量、可读性、真实送达体验 | 结构化验收清单 | 按用例决定 |
+
+测试越靠近外部平台，执行成本和副作用越高。默认回归应优先覆盖 L0-L3；L4 只在发布前或通知链路变化后执行。
+
+## 6. 测试环境与数据隔离
+
+### 6.1 强制隔离原则
+
+所有自动化测试必须设置临时 `HERMES_RECALL_DIR`，禁止使用生产数据目录。
+
+测试过程必须满足：
+
+```text
+Temporary Test Directory != Production Recall Directory
+```
+
+### 6.2 推荐目录结构
+
+```text
+tests/
+├── fixtures/
+│   ├── recall_empty.json
+│   ├── recall_schema_1_01.json
+│   ├── recall_legacy.json
+│   ├── history_empty.json
+│   └── legacy_notes.md
+├── test_cli.py
+├── test_schema.py
+├── test_history.py
+├── test_view.py
+├── test_migration.py
+├── test_reminder.py
+├── test_scheduler.py
+└── test_validator.py
+```
+
+这是 Target 结构，当前尚未创建。
+
+### 6.3 合成数据规则
+
+测试数据必须：
+
+- 使用虚构内容；
+- 使用虚构 Record ID；
+- 使用固定、可预测的时间；
+- 不包含真实联系人、客户或事务；
+- 不包含 Feishu `chat_id`、Webhook、Token 或 API Key；
+- 在用例结束后自动清理。
+
+虚构示例：
+
+```json
+{
+  "id": "recall_20260810_a1b2c3",
+  "schema_version": "1.01",
+  "content": "周五下午整理项目复盘材料",
+  "category": "工作待办",
+  "tags": ["项目", "复盘"],
+  "needs_reminder": true,
+  "remind_at": "2026-08-14T14:00:00+08:00",
+  "reminder_status": "pending",
+  "status": "待处理",
+  "priority": "normal",
+  "created_at": "2026-08-10T10:00:00+08:00",
+  "updated_at": "2026-08-10T10:00:00+08:00",
+  "source": "user",
+  "metadata": {}
+}
+```
+
+### 6.4 时间控制
+
+Reminder 测试不得依赖真实等待。应通过以下方式之一控制时间：
+
+- 向 Core 注入 clock；
+- 在测试进程中 monkeypatch 时间来源；
+- 使用相对当前测试时间构造明确的过去和未来时间；
+- 将到期判断提取为可传入 `now` 的纯函数。
+
+在未重构时间依赖前，可以使用临时目录和动态时间完成组件测试，但必须避免跨午夜和时区不确定性。
+
+### 6.5 外部通知隔离
+
+L0-L3 不允许发送真实 Feishu 消息。
+
+webhook 测试使用本地 fake HTTP server，验证：
+
+- 请求方法；
+- Content-Type；
+- payload 结构；
+- 成功响应处理；
+- 超时和错误响应处理。
+
+真实 Feishu 只允许在 L4 明确执行。
+
+## 7. 测试状态定义
+
+每个用例使用以下状态：
+
+| 状态 | 含义 |
+|---|---|
+| `Planned` | 已定义但尚未执行 |
+| `Blocked` | 前置条件或环境未满足 |
+| `Running` | 正在执行 |
+| `Passed` | 实际执行结果符合预期 |
+| `Failed` | 实际执行结果不符合预期 |
+| `Not Run` | 本轮明确未执行 |
+| `Not Applicable` | 当前版本不适用 |
+
+禁止在没有真实执行证据时使用 `Passed`。
+
+## 8. 用例编号规则
+
+用例采用：
+
+```text
+T<测试组编号>-<三位用例编号>
+```
+
+例如：
+
+```text
+T01-001
+T03-004
+T10-002
+```
+
+测试组固定为：
+
+1. Test 01：数据结构与 Schema
+2. Test 02：CLI 与 CRUD 生命周期
+3. Test 03：AI 语义分类与时间解析
+4. Test 04：History Event
+5. Test 05：Markdown View
+6. Test 06：Migration 与 Upgrade
+7. Test 07：Reminder 与 Scheduler
+8. Test 08：Notification 与端到端投递
+9. Test 09：异常、可靠性与恢复
+10. Test 10：隐私、分发与版本一致性
+
+## 9. Test 01：数据结构与 Schema
+
+### 9.1 目标
+
+验证 `recall.json` 顶层结构、14 个 Record 字段、类型、枚举和字段关系符合 Schema 1.01。
+
+### 9.2 用例
+
+| ID | 层级 | 用例 | 预期结果 | 当前自动覆盖 |
+|---|---|---|---|---:|
+| T01-001 | L1 | 空数据文件包含 `version` 和空 `recalls` | 可读取，版本为 `1.01` | 否 |
+| T01-002 | L1 | 新 Record 包含全部 14 个字段 | 字段完整，类型正确 | 否 |
+| T01-003 | L1 | 连续创建多个 Record | ID 唯一且格式正确 | 部分 |
+| T01-004 | L1 | 旧格式 ID 读取 | 保持原 ID，不强制重写 | 否 |
+| T01-005 | L1 | 五种合法 category | 全部通过 | 部分 |
+| T01-006 | L1 | 非法 category | add/update 拒绝，退出码明确 | 否 |
+| T01-007 | L1 | 四种合法 status | 全部可保存 | 部分 |
+| T01-008 | L1 | 非法 status | update 拒绝 | 否 |
+| T01-009 | L1 | 三种合法 priority | 全部可保存 | 否 |
+| T01-010 | L1 | 非法 priority | add/update 拒绝 | 否 |
+| T01-011 | L1 | 四种合法 reminder_status | 全部可保存 | 部分 |
+| T01-012 | L1 | 非法 reminder_status | validator 或 CLI 拒绝 | 部分 |
+| T01-013 | L1 | `needs_reminder=true` 且 `remind_at=null` | validator 失败 | 是 |
+| T01-014 | L1 | 带时区 ISO 8601 时间 | 可解析并正确比较 | 否 |
+| T01-015 | L1 | 无时区时间 | Target：validator 拒绝 | 否 |
+| T01-016 | L1 | 空 content | Target：Core/validator 拒绝 | 否 |
+| T01-017 | L1 | tags 非字符串数组 | Target：validator 拒绝 | 否 |
+| T01-018 | L1 | metadata 非 object | Target：validator 拒绝 | 否 |
+| T01-019 | L1 | 顶层 version 与 Record schema_version 不一致 | Target：validator 报错 | 否 |
+| T01-020 | L1 | `updated_at` 早于 `created_at` | Target：validator 报错 | 否 |
+
+### 9.3 通过标准
+
+- Current 强制规则全部通过；
+- Target 校验在实现前保持 Planned，不伪报 Passed；
+- validator 增强后，所有非法样本必须返回非零退出码和明确字段错误。
+
+## 10. Test 02：CLI 与 CRUD 生命周期
+
+### 10.1 目标
+
+验证每个 CLI 命令对主数据、输出、退出码和 History 的影响。
+
+### 10.2 用例
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T02-001 | L2 | `add` 普通记录 | 写入 Record，返回 ID，History 新增 create |
+| T02-002 | L2 | `add` 带 Reminder | `needs_reminder=true`，保存时间 |
+| T02-003 | L2 | `list` 默认列表 | 隐藏已归档，按创建时间倒序 |
+| T02-004 | L2 | `list --all` | 包含已归档 |
+| T02-005 | L2 | `list --category` | 只返回目标分类 |
+| T02-006 | L2 | `list --status` | 只返回目标状态 |
+| T02-007 | L2 | `list --remind` | 只返回带 Reminder 的记录 |
+| T02-008 | L2 | `get` 存在 ID | 输出完整 JSON Record |
+| T02-009 | L2 | `get` 不存在 ID | 返回非零退出码，不改数据 |
+| T02-010 | L2 | `search` 匹配 content | 返回命中记录 |
+| T02-011 | L2 | `search` 匹配 tag | 返回命中记录 |
+| T02-012 | L2 | `search` 无结果 | 正常退出并明确提示 |
+| T02-013 | L2 | `update --content` | 只在明确调用时修改原文 |
+| T02-014 | L2 | `update` 分类、标签、状态和优先级 | 字段更新并刷新 `updated_at` |
+| T02-015 | L2 | update 尝试修改 ID | CLI 无该参数，ID 不变 |
+| T02-016 | L2 | update 尝试修改 created_at | CLI 无该参数，时间不变 |
+| T02-017 | L2 | `done` | status 变为已完成，History 新增 done |
+| T02-018 | L2 | `delete` | 主数据删除，History 保留 delete |
+| T02-019 | L2 | 空库执行 list/stats | 正常退出，不抛异常 |
+| T02-020 | L2 | 命令失败前后文件比较 | 失败命令不产生部分写入 |
+
+### 10.3 通过标准
+
+- 所有命令退出码符合约定；
+- 失败路径不污染数据；
+- `id` 和 `created_at` 始终保持不可变；
+- `content` 不被 AI 或辅助字段静默覆盖。
+
+## 11. Test 03：AI 语义分类与时间解析
+
+### 11.1 测试边界
+
+AI 语义判断属于 Hermes Agent 行为，不完全由 `recall.py` 实现。因此本组分为：
+
+- Core 兜底分类测试；
+- Hermes 语义用例人工验收；
+- 时间转换结果验证。
+
+### 11.2 分类基准用例
+
+至少覆盖：
+
+| ID | 输入意图 | 期望分类 | 重点 |
+|---|---|---|---|
+| T03-001 | 明确项目交付任务 | 工作待办 | 工作行动 |
+| T03-002 | 个人购物或家务 | 生活日常 | 非工作事务 |
+| T03-003 | 创业或产品构思 | 想法灵感 | 不能因“AI”误判为学习 |
+| T03-004 | 技术学习笔记 | 学习笔记 | 知识记录 |
+| T03-005 | 保存文章或链接 | 收藏 | 资源保存 |
+| T03-006 | 含“项目”但表达创业想法 | 想法灵感 | 语义优先于关键词 |
+| T03-007 | 无法明确判断 | 想法灵感 | 默认规则 |
+
+### 11.3 时间解析用例
+
+| ID | 输入类型 | 预期 |
+|---|---|---|
+| T03-008 | 明天下午 3 点 | 转为明确日期、15:00、带时区 |
+| T03-009 | 下周一上午 | 转为明确日期、默认 09:00 |
+| T03-010 | 某日晚上 | 使用默认 20:00 |
+| T03-011 | 某日前完成 | 按规则提前一天提醒 |
+| T03-012 | 只有“以后”“有空” | 不创建 Reminder |
+| T03-013 | 明确日期但无时刻 | 使用对应时段默认值 |
+| T03-014 | 跨年日期 | 年份解析正确 |
+| T03-015 | 已过去时间 | 明确提示或按产品规则处理，不静默误设 |
+
+### 11.4 标签质量
+
+- 每条语义用例生成 2 到 4 个高信息量标签；
+- 不机械重复完整 content；
+- 不生成敏感信息扩散型标签；
+- 标签与 Record 主体一致。
+
+### 11.5 通过标准
+
+AI 用例必须记录模型、日期、输入、实际输出和人工判定。不能只写“100% 通过”而不保留逐项结果。
+
+## 12. Test 04：History Event
+
+### 12.1 用例
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T04-001 | L2 | add | create Event 包含 ID 和必要 detail |
+| T04-002 | L2 | update | 保存 before/after，主 ID 一致 |
+| T04-003 | L2 | done | 保存状态 before/after |
+| T04-004 | L2 | delete | 删除后 History 仍保留 Event |
+| T04-005 | L2 | Reminder 成功 | 追加 remind_sent |
+| T04-006 | L2 | upgrade 改动 Record | 追加带 note 的 update Event |
+| T04-007 | L1 | 旧 History 快照包含旧枚举 | 当前主数据 validator 不误判 History |
+| T04-008 | L1 | Event detail 缺少可选字段 | History 消费者兼容处理 |
+| T04-009 | L2 | 重复 ID 生成检查 | History 中已删除 ID 不被复用 |
+| T04-010 | L2 | History 写入失败 | 主数据与 History 一致性风险被明确报告 |
+
+### 12.2 通过标准
+
+- History 准确反映实际操作；
+- 不重写旧历史以伪装成新 Schema；
+- History 不被宣称为可完整重建主数据的事件源；
+- 故障场景明确当前非事务写入的风险。
+
+## 13. Test 05：Markdown View
+
+### 13.1 用例
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T05-001 | L2 | 空数据生成 View | 生成明确空状态文档 |
+| T05-002 | L2 | 多分类记录生成 View | 按固定分类组织 |
+| T05-003 | L2 | 已完成记录 | 显示完成标记 |
+| T05-004 | L2 | 已归档记录 | 默认不显示 |
+| T05-005 | L2 | Reminder 与 tags | 正确显示时间和标签 |
+| T05-006 | L2 | 指定 `--output` | 只写临时数据目录内目标文件 |
+| T05-007 | L2 | 重复生成 | 输出可重复，不增加重复记录 |
+| T05-008 | L2 | 修改 View 后重新生成 | 以 JSON 覆盖，证明 View 非事实来源 |
+| T05-009 | L2 | View 写入失败 | 主数据不改变 |
+| T05-010 | L5 | 人工可读性检查 | 文本无截断、结构清晰、信息准确 |
+
+## 14. Test 06：Migration 与 Upgrade
+
+### 14.1 Markdown Migration 用例
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T06-001 | L2 | 旧日期标题格式 | 正确拆分 Records |
+| T06-002 | L2 | 普通列表格式 | 每个列表项独立迁移 |
+| T06-003 | L2 | `--dry-run` | 输出预览，不修改任何文件 |
+| T06-004 | L2 | 不存在的输入文件 | 非零退出，不改数据 |
+| T06-005 | L2 | 空文件 | 迁移 0 条，正常退出 |
+| T06-006 | L2 | 含时间词但无法确定时间 | 不留下未报告的非法 Reminder |
+| T06-007 | L2 | content 保真 | 原始文本不丢失、不静默总结 |
+| T06-008 | L2 | migration source/metadata | 正确标记来源 |
+| T06-009 | L2 | 重复运行 | Target：幂等或明确报告重复风险 |
+
+### 14.2 Schema Upgrade 用例
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T06-010 | L2 | 缺 ID | 生成唯一 ID |
+| T06-011 | L2 | 缺 schema_version | 补当前版本 |
+| T06-012 | L2 | 低版本 schema_version | 升级到当前版本 |
+| T06-013 | L2 | 缺 created_at | 按规则补齐 |
+| T06-014 | L2 | 缺 updated_at | 使用 created_at 或当前时间 |
+| T06-015 | L2 | 已是当前版本 | 不产生无意义变更 |
+| T06-016 | L2 | content/category/Reminder 状态 | upgrade 不静默修改 |
+| T06-017 | L2 | 顶层 version | 升级后与当前 Schema 一致 |
+| T06-018 | L2 | History | 只对实际变化记录追加事件 |
+| T06-019 | L2 | 迁移前备份 | Target：备份存在且可恢复 |
+| T06-020 | L2 | 中途写入失败 | Target：不会留下混合 Schema |
+
+### 14.3 通过标准
+
+任何修改持久数据的版本发布前，Migration 和 Upgrade 测试必须使用旧版本合成夹具真实执行，不能仅检查函数返回值。
+
+## 15. Test 07：Reminder 与 Scheduler
+
+### 15.1 到期筛选
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T07-001 | L1 | 无 Reminder | 不进入 due |
+| T07-002 | L1 | future + pending | 不进入 due |
+| T07-003 | L1 | past + pending | 进入 due |
+| T07-004 | L1 | exact now + pending | 进入 due |
+| T07-005 | L1 | past + sent | 不进入 due |
+| T07-006 | L1 | past + failed | 当前不进入 due，需手工重置 |
+| T07-007 | L1 | past + cancelled | 不进入 due |
+| T07-008 | L1 | 非法 remind_at | 明确失败，不静默触发 |
+| T07-009 | L1 | 无时区 remind_at | Target：validator 提前拒绝 |
+| T07-010 | L1 | 多条到期提醒 | 按 remind_at 排序 |
+
+### 15.2 Scheduler 行为
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T07-011 | L3 | 无到期 Reminder | stdout 为空，退出 0 |
+| T07-012 | L3 | 有到期 Reminder | 输出用户可读提醒文本 |
+| T07-013 | L3 | Core 返回错误 | scheduler 透传 stderr 和退出码 |
+| T07-014 | L3 | 路径或解释器错误 | 明确失败，不伪报成功 |
+| T07-015 | L3 | 通用 scheduler | 相对定位同目录 `recall.py` |
+| T07-016 | L3 | 本机 scheduler | 业务语义与通用版一致 |
+| T07-017 | L3 | 重复执行已 sent Reminder | 不再次输出 |
+| T07-018 | L3 | 多条提醒消息边界 | 每条内容清晰，不发生粘连歧义 |
+
+### 15.3 Reminder 状态操作
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T07-019 | L2 | 手工取消 | status 设为 cancelled |
+| T07-020 | L2 | 手工恢复 | status 重置为 pending |
+| T07-021 | L2 | 完成任务但 Reminder pending | 验证当前独立语义并记录结果 |
+| T07-022 | L2 | needs_reminder=false 但保留时间 | 验证当前不进入 due |
+
+## 16. Test 08：Notification 与端到端投递
+
+### 16.1 Gateway 输出模式
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T08-001 | L3 | webhook 为空 | 输出提醒文本供 cron delivery |
+| T08-002 | L3 | 输出格式 | 包含分类、内容、提醒时间、创建时间 |
+| T08-003 | L3 | 输出后状态 | 记录当前变为 sent |
+| T08-004 | L3 | cron delivery 失败 | 明确暴露 Record 与 delivery 状态不一致窗口 |
+
+T08-004 当前用于证明已知风险，不要求 v1.0 自动修复。未来可靠 Reminder 实现前，该用例可以是 Expected Failure，但必须被跟踪。
+
+### 16.2 webhook 备用模式
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T08-005 | L3 | fake server 返回成功 | Record 设为 sent |
+| T08-006 | L3 | fake server 返回失败码 | Record 设为 failed，退出非零 |
+| T08-007 | L3 | 网络超时 | 状态 failed，错误明确 |
+| T08-008 | L3 | payload | JSON 格式和消息字段正确 |
+| T08-009 | L3 | 日志 | 不输出完整 webhook 凭据 |
+
+### 16.3 Feishu 真实端到端
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T08-010 | L4 | 创建隔离测试 Reminder | 测试记录与生产事项可区分 |
+| T08-011 | L4 | 等待自然 cron tick | cron 真实执行 scheduler |
+| T08-012 | L4 | Gateway delivery | `last_delivery_error` 为空 |
+| T08-013 | L5 | 用户确认实收 | Feishu 中真实收到且内容正确 |
+| T08-014 | L4 | 测试后清理 | 测试 Record 删除或归档并留审计记录 |
+
+执行约束：
+
+- 真实投递前必须获得用户明确同意；
+- 不使用客户或工作事项作为测试内容；
+- 不在测试报告中记录真实 chat ID；
+- 手工触发与 Gateway 自然 tick 必须区分；
+- cron `Result: ok` 不等于用户实收，必须同时检查 delivery 和人工确认。
+
+## 17. Test 09：异常、可靠性与恢复
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T09-001 | L2 | `recall.json` 非法 JSON | 明确报错，不覆盖原文件 |
+| T09-002 | L2 | `recall_history.json` 非法 JSON | 明确报错，不伪报操作成功 |
+| T09-003 | L2 | `config.json` 非法 JSON | 明确报错，不泄露配置 |
+| T09-004 | L2 | 数据目录只读 | 非零退出，不产生部分数据 |
+| T09-005 | L2 | 磁盘写入失败 | 错误明确，原文件可恢复 |
+| T09-006 | L2 | 主数据保存成功、History 保存失败 | 暴露当前非事务一致性风险 |
+| T09-007 | L2 | 并发 add | 评估 ID 和整体覆盖风险 |
+| T09-008 | L2 | 大文件读取和保存 | 记录耗时与内存，不预设硬阈值 |
+| T09-009 | L2 | 中断 upgrade | Target：从备份恢复 |
+| T09-010 | L3 | scheduler 子进程超时 | 非零退出并可诊断 |
+| T09-011 | L3 | Gateway 不可用 | delivery 错误可见 |
+| T09-012 | L3 | Provider 暂时失败 | Target：按策略 retry 且不重复发送 |
+| T09-013 | L3 | 重复 delivery 请求 | Target：幂等处理 |
+| T09-014 | L2 | 系统时区变化 | 到期判断不发生静默偏移 |
+| T09-015 | L2 | 夏令时或 offset 边界样本 | 时间比较结果明确 |
+
+当前 v1.0 无法通过的 Target 用例必须记录为 Planned 或 Expected Failure，不能通过放宽预期掩盖风险。
+
+## 18. Test 10：隐私、分发与版本一致性
+
+### 18.1 隐私和秘密扫描
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T10-001 | L0 | Git tracked files 扫描 Token/API Key/Webhook | 无真实凭据 |
+| T10-002 | L0 | Feishu 身份模式扫描 | 无真实 chat/user/open ID |
+| T10-003 | L0 | 测试夹具内容审查 | 无真实客户、联系人或事务 |
+| T10-004 | L0 | `recall.json` 和 History 跟踪检查 | 用户数据未被 Git 跟踪 |
+| T10-005 | L0 | 发布包检查 | 不包含 `.git`、本地配置或用户数据 |
+| T10-006 | L3 | 错误日志 | 凭据和 webhook 已脱敏 |
+
+### 18.2 版本一致性
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T10-007 | L0 | 产品版本显示 | 只使用已定义产品版本 |
+| T10-008 | L0 | Skill 发布版本 | `SKILL.md` 与发布产物一致 |
+| T10-009 | L1 | Schema 常量与顶层 version | 一致 |
+| T10-010 | L1 | Record schema_version | 与实际结构和顶层版本一致 |
+| T10-011 | L0 | CLI 内部 `v2` | v1.1 完成前必须移除或重新定义 |
+| T10-012 | L0 | README、SKILL、docs | 三类版本含义不混用 |
+
+### 18.3 文档与实现一致性
+
+| ID | 层级 | 用例 | 预期结果 |
+|---|---|---|---|
+| T10-013 | L0 | CLI 命令与 SKILL.md 命令表 | 一致 |
+| T10-014 | L0 | Record 字段与数据模型文档 | 一致 |
+| T10-015 | L0 | 枚举与文档 | 一致 |
+| T10-016 | L0 | 路线状态 | 未实现能力不写成 Current |
+| T10-017 | L0 | README 测试声明 | 与当前可重复证据一致 |
+
+## 19. TDD 开发规则
+
+v1.1 及后续新增功能、缺陷修复和行为变更采用 RED-GREEN-REFACTOR。
+
+### 19.1 RED
+
+1. 先写一个描述目标行为的最小测试；
+2. 运行该测试；
+3. 确认它因目标功能尚不存在而失败；
+4. 保存失败输出作为开发证据。
+
+测试若第一次就通过，说明它没有证明新行为，需要修正测试或确认功能其实已经存在。
+
+### 19.2 GREEN
+
+1. 编写让该测试通过的最小实现；
+2. 运行单个测试；
+3. 再运行完整测试集；
+4. 不在同一步加入未被测试要求的额外功能。
+
+### 19.3 REFACTOR
+
+只在全部测试为 Green 后：
+
+- 消除重复；
+- 改善命名；
+- 提取模块；
+- 保持行为不变；
+- 每个小步骤后重新运行测试。
+
+### 19.4 垂直切片
+
+不要先批量写完全部 v1.1 测试，再一次实现所有字段。推荐顺序：
+
+```text
+一个字段 Contract → 一个失败测试 → 最小实现 → 回归
+下一字段 Contract → 一个失败测试 → 最小实现 → 回归
+```
+
+涉及 Schema Migration 时，每个垂直切片都要同时覆盖新数据和旧数据。
+
+## 20. 自动化实施顺序
+
+测试代码建议按以下顺序建设：
+
+### Phase A：无副作用基础
+
+1. 建立 `pytest` 和临时目录 fixture；
+2. Test 01 Schema；
+3. Test 02 CLI CRUD；
+4. Test 04 History；
+5. Test 05 View。
+
+### Phase B：数据变更安全
+
+1. Test 06 Migration dry-run；
+2. Test 06 Upgrade；
+3. 备份和恢复测试；
+4. 异常写入测试。
+
+### Phase C：Reminder
+
+1. 提取可控制时间的到期判断；
+2. Test 07 due；
+3. Test 07 scheduler；
+4. Test 08 fake webhook；
+5. Test 09 故障注入。
+
+### Phase D：Agent 与真实平台
+
+1. Test 03 语义基准；
+2. Test 08 Gateway 集成；
+3. Test 08 Feishu 真实端到端；
+4. 人工验收。
+
+任何 Phase 都不得直接读取或改写生产数据。
+
+## 21. v1.0 回归门禁
+
+每次修改当前代码后，最低回归要求：
+
+1. Python 编译通过；
+2. 自动测试全绿；
+3. Validator 对合成合法数据通过；
+4. Validator 对非法数据按预期失败；
+5. CRUD 生命周期通过；
+6. View 生成通过；
+7. Migration dry-run 不写数据；
+8. 无到期 Reminder 时 scheduler 静默；
+9. 秘密和用户数据扫描通过；
+10. 文档和版本一致性通过。
+
+当前自动化测试尚未建设完成前，应明确报告哪些门禁只能人工执行或尚未执行。
+
+## 22. v1.1 开发准入门禁
+
+正式修改 v1.1 生产代码前必须满足：
+
+- 前五份核心文档已验收；
+- v1.1 最终数据 Contract 已单独确认；
+- `tests/` 基础设施已经建立；
+- v1.0 CRUD、History、View 和 Reminder 回归测试存在；
+- v1.1 Migration 测试先写并确认 RED；
+- 生产数据已备份；
+- Schema 版本变化已决定；
+- 回滚策略已验证；
+- 内部 `v2` 标识修复有失败测试或一致性检查；
+- 用户明确确认开始实施。
+
+如果上述条件未满足，v1.1 保持 Next，不进入 In Progress。
+
+## 23. 发布验收门禁
+
+一个版本可以发布，必须同时满足：
+
+### 23.1 自动化
+
+- 所有适用测试通过；
+- 无未解释的 Expected Failure；
+- 无测试警告或随机失败；
+- Migration 和 rollback 样本通过；
+- 隐私和秘密扫描通过。
+
+### 23.2 人工
+
+- 核心用户流程逐条验收；
+- 文档与实际行为一致；
+- 若修改通知链路，真实端到端实收通过；
+- 版本号和变更说明确认；
+- 用户数据备份确认。
+
+### 23.3 文档
+
+- 项目总览更新；
+- 架构变化更新；
+- 数据模型更新；
+- 路线状态更新；
+- 测试结果归档；
+- README 和 SKILL 操作方式同步。
+
+## 24. 缺陷严重级别
+
+| 级别 | 定义 | 示例 | 发布处理 |
+|---|---|---|---|
+| S0 Critical | 数据丢失、凭据泄露、不可恢复损坏 | upgrade 覆盖原数据且无法恢复 | 禁止发布，立即修复 |
+| S1 High | 核心流程错误或 Reminder 严重不可靠 | 重复发送、漏发、错误删除 | 禁止发布 |
+| S2 Medium | 功能偏差但有明确绕行 | 某过滤条件错误 | 原则上修复后发布 |
+| S3 Low | 文案、格式或低风险体验问题 | CLI 提示不清楚 | 可评估延期 |
+
+任何 S0/S1 必须先写失败测试复现，再修复并加入回归。
+
+## 25. 测试报告格式
+
+每次正式测试输出一份报告，至少包含：
+
+```markdown
+# Hermes Recall 测试报告
+
+- 产品版本：
+- Skill 版本：
+- Schema 版本：
+- 测试日期：
+- 测试环境：
+- 被测提交：
+- 数据类型：synthetic / isolated E2E
+
+## 通过项
+
+- T01-001：通过，证据：...
+
+## 失败项
+
+- T07-004：失败
+  - 预期：
+  - 实际：
+  - 影响：
+  - 严重级别：
+
+## 未执行项
+
+- T08-013：Not Run，原因：未进行真实 Feishu 投递
+
+## 建议修复
+
+1. ...
+
+## 最终结论
+
+- 通过 / 有条件通过 / 不通过
+- 是否允许发布：是 / 否
+```
+
+报告必须写真实执行结果，不使用推测性输出。
+
+## 26. 当前基线测试报告
+
+截至核验日期，本次文档建设阶段真实执行过：
+
+### 26.1 通过项
+
+- 当前生产 `recall.json` 的基础 validator 检查通过；
+- 三个 Python 脚本语法编译通过；
+- CLI 帮助可正常加载；
+- 当前到期查询可正常执行；
+- 文档 JSON 示例可解析；
+- Mermaid 围栏和起始声明通过结构检查；
+- Git 文档提交范围检查通过。
+
+### 26.2 缺失项
+
+- 没有 pytest 自动化测试；
+- 没有隔离的 CRUD 回归套件；
+- 没有自动 Migration/Upgrade 回归；
+- 没有 fake webhook 测试；
+- 没有故障注入测试；
+- 没有 CI；
+- 本轮没有执行真实 Feishu 端到端测试。
+
+### 26.3 当前结论
+
+v1.0 已有基础运行验证，但尚未建立完整、可重复的工程测试体系。该缺口不应阻止继续完善项目文档，但在 v1.1 源码开发前必须先建立最低自动化回归基线。
+
+## 27. 后续执行建议
+
+前五份核心文档验收完成后，建议下一次工程任务只做测试基础设施，不同时开发 v1.1 功能：
+
+1. 创建隔离的 `tests/`；
+2. 建立临时 `HERMES_RECALL_DIR` fixture；
+3. 先为现有 v1.0 行为编写 Characterization Tests；
+4. 执行并记录当前行为；
+5. 对已知缺陷编写 Expected Failure 或明确失败测试；
+6. 形成第一份可重复测试报告；
+7. 用户验收测试基线后，再冻结 v1.1 数据 Contract。
+
+Characterization Tests 用于锁定现有行为，不代表现有行为一定是最终正确设计。发现与正式文档冲突时，应先讨论预期，再决定修复代码还是调整文档。
