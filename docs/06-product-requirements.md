@@ -1,0 +1,830 @@
+# Hermes Recall（回响）产品需求文档
+
+> 文档状态：Current + Target
+>
+> 状态核验日期：2026-08-10
+>
+> 当前产品基线：v1.0
+>
+> 下一候选产品版本：v1.1
+
+## 1. 文档目的
+
+本文档定义 Hermes Recall 的产品定位、目标用户、核心问题、使用场景、产品模式、功能需求、非功能需求、范围边界和产品验收标准。
+
+本文档回答“为什么做、为谁做、需要提供什么体验”，不展开：
+
+- 内部模块如何拆分；
+- JSON 字段如何定义；
+- Reminder 状态机如何实现；
+- 测试代码如何组织；
+- 具体部署命令和运维步骤。
+
+这些内容分别由系统架构、数据模型、Reminder 与 Notification 专项设计、测试计划和部署运维文档管理。
+
+## 2. 产品定义
+
+Hermes Recall（回响）是面向 Hermes Agent 的本地智能备忘录与个人长期记忆产品。
+
+它帮助用户通过自然语言保存想法、任务、知识和资料，并在需要时查询、整理或获得提醒。长期方向是使 Hermes 能在正确的时间重新唤起与当前上下文相关的信息。
+
+核心理念：
+
+> Recall = Hermes 对用户过去想法、计划和信息的回响。
+
+产品价值不只是“记住更多”，而是：
+
+- 输入成本足够低，用户愿意持续记录；
+- 原始表达得到可靠保存；
+- 需要的信息可以再次找到；
+- 明确时间的事项能够被提醒；
+- 主动能力可控，不制造额外打扰；
+- 用户始终拥有自己的数据。
+
+## 3. 背景与问题
+
+### 3.1 用户问题
+
+个人信息通常分散在聊天、便签、Todo、文档和即时通讯工具中，容易出现：
+
+- 想法记录后无法再次找到；
+- 任务和知识被放在同一个列表中，缺少语义区分；
+- 用户需要手工决定分类、标签和提醒时间；
+- 重要事项只被保存，没有在合适时间重新出现；
+- 普通提醒工具只处理时间，不理解信息背景；
+- 长期记录越来越多后，关键词搜索不足；
+- 复杂配置降低了普通用户持续使用的意愿。
+
+### 3.2 现有工具的不足
+
+传统 Todo 强于任务状态，但通常不适合保存想法、知识、偏好和经历。
+
+传统笔记强于信息保存，但通常不会主动判断提醒时间，也缺少与个人 AI 助手的自然语言闭环。
+
+聊天记录保留了上下文，但检索、结构化、提醒和长期数据所有权往往不清晰。
+
+Recall 试图连接三种能力：
+
+```text
+记录过去 + 理解现在 + 提醒未来
+```
+
+### 3.3 当前机会
+
+Hermes Agent 已经具备自然语言理解、工具调用、长期运行和多平台 Gateway。Recall 可以利用这些能力，将用户表达转换为结构化本地数据，同时保持交互方式自然、数据边界明确。
+
+## 4. 产品愿景
+
+### 4.1 近期愿景
+
+建立一个用户愿意持续使用、数据可靠、提醒可达的个人智能备忘录。
+
+### 4.2 中期愿景
+
+让记录具有类型、重要程度、实体和关系，使用户能够按主题、上下文和关联查询自己的历史信息。
+
+### 4.3 长期愿景
+
+发展为可安装、可配置、可扩展的 Hermes Personal AI Memory System，在用户控制下提供主动回顾、语义召回和多平台通知。
+
+长期愿景不代表当前功能承诺。
+
+## 5. 产品原则
+
+### 5.1 原文优先
+
+用户原始表达是最重要的信息。AI 可以添加分类、标签、摘要或关系，但不得静默覆盖原文。
+
+### 5.2 低输入成本
+
+用户应以自然语言完成常见操作，不需要先学习数据库字段、命令参数或内部架构。
+
+### 5.3 宁缺毋滥的提醒
+
+只有存在明确时间时才主动创建 Reminder。模糊表达不能被擅自转换为高打扰提醒。
+
+### 5.4 主动但可控
+
+Weekly Review、提醒建议和主动 Recall 应默认可解释、可关闭、可撤销。建议不等于自动修改。
+
+### 5.5 本地数据所有权
+
+用户应能知道数据存在哪里，并能够查询、导出、备份、迁移和删除。
+
+### 5.6 内部复杂度不转嫁给普通用户
+
+Provider、Scheduler、Identity Mapping、Schema Version 和 Migration 属于内部或高级能力。Simple Mode 用户不应被要求理解这些概念。
+
+### 5.7 渐进产品化
+
+先保证个人长期真实使用，再扩展模式、多平台和语义记忆。未经真实验证的能力不进入 Current。
+
+## 6. 目标用户
+
+### 6.1 核心用户：个人 Hermes 用户
+
+特征：
+
+- 已经使用 Hermes Agent 处理日常或工作信息；
+- 希望通过自然语言记录事项；
+- 同时保存任务、想法、知识和收藏；
+- 需要部分事项在未来得到提醒；
+- 重视数据可控和隐私；
+- 不希望学习复杂的数据库或通知配置。
+
+主要目标：
+
+- 快速记录；
+- 准确查询；
+- 不漏掉有明确时间的事项；
+- 长期积累可重新利用的信息。
+
+### 6.2 普通用户
+
+特征：
+
+- 不熟悉 CLI、JSON、Schema、cron 或 Provider；
+- 希望安装后立即使用；
+- 只关心“记住这个”“提醒我”“我之前记过什么”；
+- 需要清晰错误提示和安全默认值。
+
+产品模式：目标为 Simple Mode，当前尚未实现。
+
+### 6.3 进阶个人用户
+
+特征：
+
+- 能理解基本配置和数据目录；
+- 希望控制通知平台、路由、数据迁移和高级查询；
+- 愿意检查健康状态和测试结果；
+- 可能在多个 Hermes 会话或平台中使用 Recall。
+
+产品模式：目标为 Personal Mode。当前 v1.0 已具备部分进阶配置基础，但尚未形成正式模式产品。
+
+### 6.4 项目维护者
+
+特征：
+
+- 维护 Skill、数据 Schema、Migration、Scheduler 和发布流程；
+- 需要可重复测试、版本边界和故障诊断；
+- 负责 GitHub 与分发渠道同步；
+- 不属于主要终端用户，但影响产品可靠性。
+
+### 6.5 当前非目标用户
+
+当前不以以下场景为主要目标：
+
+- 企业多人协作知识库；
+- 团队项目管理平台；
+- 强合规医疗或法律档案系统；
+- 高并发多租户 SaaS；
+- 替代完整日历、邮箱或 CRM；
+- 无人工监督的自治决策系统。
+
+## 7. 核心用户任务
+
+用户需要能够用自然语言完成：
+
+1. 记录一条信息；
+2. 为有明确时间的事项创建 Reminder；
+3. 查看全部或某类记录；
+4. 搜索过去保存的内容；
+5. 查看某条记录详情；
+6. 修改记录内容、分类、标签或状态；
+7. 标记任务完成；
+8. 取消或恢复 Reminder；
+9. 删除不再需要的记录；
+10. 查看近期记录或未来 Review；
+11. 知道数据是否安全、提醒是否正常；
+12. 导出、备份和迁移个人数据。
+
+其中 1-9 已具备不同程度的 v1.0 支持；10-12 仍有部分 Target 能力。
+
+## 8. 核心使用场景
+
+### 8.1 快速记录工作事项
+
+用户表达：
+
+```text
+记一下，周五下午整理项目复盘材料。
+```
+
+期望：
+
+- 保留原话；
+- 判断为工作待办；
+- 生成少量相关标签；
+- 解析明确时间；
+- 告知记录与 Reminder 结果。
+
+### 8.2 保存无提醒想法
+
+用户表达：
+
+```text
+想到一个帮助个人整理长期记忆的产品方向。
+```
+
+期望：
+
+- 分类为想法灵感；
+- 不因“以后可能做”擅自创建 Reminder；
+- 后续可通过主题或关键词找到。
+
+### 8.3 保存知识或资料
+
+用户表达：
+
+```text
+记住这篇关于 Agent Memory 的文章。
+```
+
+期望：
+
+- 根据语义归入学习笔记或收藏；
+- 保留标题、链接或用户补充信息；
+- 后续可按标签检索。
+
+### 8.4 查询过去信息
+
+用户表达：
+
+```text
+我之前记过哪些和项目复盘有关的内容？
+```
+
+v1.0 期望：关键词或标签查询。
+
+长期目标：结合主题、实体、关系和语义召回，并解释结果来源。
+
+### 8.5 完成任务
+
+用户表达：
+
+```text
+项目复盘材料已经整理完了。
+```
+
+期望：
+
+- 找到明确目标记录；
+- 目标不唯一时请求确认；
+- 将任务标记为已完成；
+- 不误完成其他记录；
+- Reminder 是否继续保留按明确产品规则处理。
+
+### 8.6 到期提醒
+
+期望：
+
+- 只提醒到期且仍有效的事项；
+- 内容清晰；
+- 无到期事项时保持静默；
+- 失败可见；
+- 不因系统重试造成重复打扰；
+- 当前版本诚实区分“已交给投递流程”和“用户确认收到”。
+
+### 8.7 周期性回顾
+
+长期目标：
+
+- 汇总近期记录；
+- 发现关注主题和重复方向；
+- 指出未完成事项；
+- 区分事实、推断和建议；
+- 默认不修改主数据；
+- 用户可以关闭或跳过。
+
+## 9. 产品模式
+
+### 9.1 模式设计原则
+
+Simple Mode 和 Personal Mode：
+
+- 共享同一个 Recall Core；
+- 使用相同的用户数据契约；
+- 不复制业务规则；
+- 可以有不同配置入口和功能暴露程度；
+- 模式切换不得造成数据丢失；
+- 高级配置不能破坏 Simple Mode 的安全默认值。
+
+### 9.2 Simple Mode（Target）
+
+面向普通用户，目标是安装后即可使用。
+
+用户主要看到：
+
+- 记住；
+- 提醒；
+- 查询；
+- 完成；
+- 删除；
+- 最近总结；
+- 简单的数据导出和健康状态。
+
+用户不需要理解：
+
+- Provider；
+- Identity Mapping；
+- cron；
+- Schema Version；
+- Migration 命令；
+- Routing Rule；
+- 数据库实现。
+
+Simple Mode 应提供：
+
+- Setup Wizard；
+- 安全默认数据目录；
+- 默认分类和时间规则；
+- 单一默认通知目标；
+- 清晰的权限和隐私说明；
+- 可恢复的配置；
+- 失败时可理解的中文提示。
+
+### 9.3 Personal Mode（Target）
+
+面向进阶用户，提供：
+
+- 数据目录选择；
+- Provider 和通知目标管理；
+- 自定义 Routing；
+- Reminder 偏好；
+- 数据 Migration；
+- 备份与恢复；
+- 健康检查；
+- 结构化和语义查询配置；
+- 更详细的诊断信息。
+
+Personal Mode 不应允许用户通过错误配置绕过数据安全、隐私和 Schema 兼容保护。
+
+### 9.4 当前状态
+
+v1.0 当前更接近“进阶用户可配置的基础实现”，但没有正式的 Personal Mode 配置模型，也没有 Simple Mode 和 Setup Wizard。
+
+因此：
+
+- Simple Mode：Target；
+- Personal Mode：部分基础存在，完整产品模式为 Target；
+- 不应在当前发布说明中宣称双模式已经可用。
+
+## 10. 当前产品范围（v1.0 Current）
+
+### 10.1 Current 功能
+
+| 能力 | 当前状态 | 用户价值 |
+|---|---|---|
+| 自然语言记录入口 | Current | 降低输入成本 |
+| 五分类 | Current | 区分任务、生活、想法、学习和收藏 |
+| 标签 | Current | 辅助关键词检索 |
+| 明确时间 Reminder | Current | 到期重新唤起信息 |
+| CRUD | Current | 管理记录生命周期 |
+| 状态与优先级 | Current | 管理任务进度和重要程度 |
+| History Event | Current | 保留操作轨迹 |
+| Markdown View | Current | 提供人类可读视图 |
+| Markdown Migration | Current | 导入旧数据 |
+| Schema upgrade | Current | 提供基础兼容升级 |
+| 统一 Scheduler | Current | 避免每条 Reminder 单独建 cron |
+| Feishu Gateway 投递 | Current | 当前主要通知通道 |
+| webhook 备用通道 | Current | 提供兼容发送方式 |
+| 基础 Validator | Current | 检查部分关键数据约束 |
+
+### 10.2 Current 限制
+
+- 搜索主要是关键词和标签匹配；
+- Reminder 的 `sent` 不等同于平台确认送达；
+- 无自动 retry；
+- Validator 未覆盖完整 Record Contract；
+- 无正式 Setup Wizard；
+- 无 Simple Mode；
+- 无正式多平台 Provider；
+- 无 SQLite 和语义检索；
+- 无自动 Weekly Review。
+
+## 11. 功能需求：记录与管理
+
+需求优先级：
+
+- **P0**：当前核心闭环必须具备；
+- **P1**：下一阶段高价值需求；
+- **P2**：后续增强；
+- **P3**：远期候选。
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-001 | P0 | Current | 用户可以用自然语言新增一条记录 |
+| PRD-FR-002 | P0 | Current | 系统保留用户原始 `content` |
+| PRD-FR-003 | P0 | Current | 系统为记录分配唯一稳定 ID |
+| PRD-FR-004 | P0 | Current | 用户可以按 ID 查看完整记录 |
+| PRD-FR-005 | P0 | Current | 用户可以查看记录列表 |
+| PRD-FR-006 | P0 | Current | 用户可以按分类、状态和 Reminder 筛选 |
+| PRD-FR-007 | P0 | Current | 用户可以通过内容和标签关键词搜索 |
+| PRD-FR-008 | P0 | Current | 用户可以修改明确允许的字段 |
+| PRD-FR-009 | P0 | Current | 用户可以标记任务完成 |
+| PRD-FR-010 | P0 | Current | 用户可以归档或删除记录 |
+| PRD-FR-011 | P0 | Current | 删除记录后保留必要审计事件 |
+| PRD-FR-012 | P1 | Candidate | 目标不唯一时，Agent 在更新、完成或删除前请求确认 |
+| PRD-FR-013 | P1 | Candidate | 用户可以导出全部个人数据 |
+| PRD-FR-014 | P1 | Candidate | 用户可以恢复经过验证的备份 |
+| PRD-FR-015 | P2 | Target | 用户可以批量归档或管理记录 |
+
+## 12. 功能需求：分类、标签与结构化记忆
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-016 | P0 | Current | 每条记录属于固定五分类之一 |
+| PRD-FR-017 | P0 | Current | Hermes 按语义而不是只按关键词选择分类 |
+| PRD-FR-018 | P0 | Current | 无法判断时使用明确默认分类 |
+| PRD-FR-019 | P0 | Current | 系统支持为记录保存标签 |
+| PRD-FR-020 | P1 | Candidate | 标签数量和格式具有一致规则 |
+| PRD-FR-021 | P1 | Candidate | 记录支持明确的 `memory_type` |
+| PRD-FR-022 | P1 | Candidate | 记录支持与 `priority` 含义不同的 `importance` |
+| PRD-FR-023 | P1 | Candidate | 记录可以保存结构化实体 |
+| PRD-FR-024 | P1 | Candidate | 记录可以表达与其他记录的关系 |
+| PRD-FR-025 | P2 | Target | 系统可以发现候选关联并说明原因 |
+| PRD-FR-026 | P2 | Target | 用户可以拒绝或撤销错误关联 |
+| PRD-FR-027 | P2 | Target | 用户可以按主题、实体和关系查询 |
+
+PRD-FR-021 至 PRD-FR-024 属于 v1.1 候选范围，最终 Contract 尚未冻结。
+
+## 13. 功能需求：Reminder
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-028 | P0 | Current | 只有明确时间才创建 Reminder |
+| PRD-FR-029 | P0 | Current | 提醒时间保存为明确日期和时间 |
+| PRD-FR-030 | P0 | Current | 到期扫描只处理有效 pending Reminder |
+| PRD-FR-031 | P0 | Current | 无到期 Reminder 时调度保持静默 |
+| PRD-FR-032 | P0 | Current | 用户可以取消 Reminder |
+| PRD-FR-033 | P0 | Current | 用户可以恢复 Reminder |
+| PRD-FR-034 | P0 | Current | Reminder 状态与任务状态相互独立 |
+| PRD-FR-035 | P1 | Candidate | 完成任务时系统明确提示尚存 Reminder，并按用户选择处理 |
+| PRD-FR-036 | P1 | Candidate | 提醒失败原因对用户或维护者可见 |
+| PRD-FR-037 | P1 | Target | 系统支持有限、可控且幂等的自动 retry |
+| PRD-FR-038 | P1 | Target | 系统区分发送尝试、平台接受和用户可确认送达 |
+| PRD-FR-039 | P2 | Target | 系统基于历史提出 Reminder 建议 |
+| PRD-FR-040 | P2 | Target | 用户可以配置提醒时段和打扰偏好 |
+| PRD-FR-041 | P2 | Target | 智能建议不会未经确认创建高频或多渠道 Reminder |
+
+## 14. 功能需求：查询、回顾与主动 Recall
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-042 | P0 | Current | 用户可以按关键词查询历史记录 |
+| PRD-FR-043 | P1 | Candidate | 用户可以按时间范围查询新增和更新记录 |
+| PRD-FR-044 | P2 | Target | 系统可以生成 Weekly Review |
+| PRD-FR-045 | P2 | Target | Review 区分事实、推断和建议 |
+| PRD-FR-046 | P2 | Target | Review 默认不修改主数据 |
+| PRD-FR-047 | P2 | Target | 用户可以关闭、跳过或手工触发 Review |
+| PRD-FR-048 | P2 | Target | 系统可以基于结构化字段和关系召回记录 |
+| PRD-FR-049 | P3 | Idea | 系统可以进行语义检索 |
+| PRD-FR-050 | P3 | Idea | 系统可以根据当前上下文提出可解释 Recall 候选 |
+| PRD-FR-051 | P3 | Idea | 用户可以纠正主动 Recall 的相关性 |
+
+## 15. 功能需求：Notification
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-052 | P0 | Current | 当前支持通过 Hermes Gateway 投递 Feishu 提醒 |
+| PRD-FR-053 | P0 | Current | 当前支持 Feishu webhook 备用通道 |
+| PRD-FR-054 | P0 | Current | 通知目标和凭据不写入 Recall 主记录 |
+| PRD-FR-055 | P1 | Target | Feishu 通过统一 Provider Contract 工作 |
+| PRD-FR-056 | P1 | Target | 系统使用统一 Identity 表达通知目标 |
+| PRD-FR-057 | P1 | Target | 用户可以选择默认通知目标 |
+| PRD-FR-058 | P1 | Target | Provider 返回统一 Delivery Result |
+| PRD-FR-059 | P2 | Target | 系统支持按类别、优先级和偏好路由 |
+| PRD-FR-060 | P2 | Target | 新 Provider 不要求修改 Recall Core |
+| PRD-FR-061 | P2 | Target | 在统一 Contract 稳定后逐步接入其他平台 |
+
+其他平台是后续候选，不在当前版本中承诺全部可用。
+
+## 16. 功能需求：数据与历史
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-062 | P0 | Current | `recall.json` 是当前主数据唯一事实来源 |
+| PRD-FR-063 | P0 | Current | Markdown View 只能由主数据单向生成 |
+| PRD-FR-064 | P0 | Current | 系统保存创建、更新、完成、删除和提醒事件 |
+| PRD-FR-065 | P0 | Current | 用户原始内容在 Migration 和 Upgrade 中不丢失 |
+| PRD-FR-066 | P0 | Current | 系统支持旧 Markdown 的显式 Migration |
+| PRD-FR-067 | P0 | Current | 系统支持基础 Schema upgrade |
+| PRD-FR-068 | P1 | Candidate | Migration 前自动创建可验证备份 |
+| PRD-FR-069 | P1 | Candidate | Migration 支持完整 dry-run 和结果报告 |
+| PRD-FR-070 | P1 | Candidate | Upgrade 失败后可以恢复到迁移前状态 |
+| PRD-FR-071 | P1 | Candidate | 用户可以明确导出和删除自己的全部数据 |
+| PRD-FR-072 | P2 | Conditional | 出现真实性能或事务需求时支持 SQLite 迁移 |
+| PRD-FR-073 | P3 | Idea | 语义索引可从结构化主数据重建 |
+
+## 17. 功能需求：产品化体验
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-FR-074 | P0 | Current | Skill 可以安装并通过文档完成配置 |
+| PRD-FR-075 | P0 | Current | 源码与用户数据分离 |
+| PRD-FR-076 | P1 | Target | 新用户可以通过 Setup Wizard 初始化 |
+| PRD-FR-077 | P1 | Target | 系统提供安全默认配置 |
+| PRD-FR-078 | P1 | Target | 用户无需理解内部架构即可完成常见操作 |
+| PRD-FR-079 | P1 | Target | 用户可以查看简明健康状态 |
+| PRD-FR-080 | P1 | Target | Simple Mode 覆盖记录、提醒、查询、完成、删除和导出 |
+| PRD-FR-081 | P2 | Target | Personal Mode 提供通知、路由、Migration 和诊断配置 |
+| PRD-FR-082 | P2 | Target | 模式切换不复制或丢失数据 |
+| PRD-FR-083 | P2 | Target | 错误提示使用普通用户能理解的语言 |
+| PRD-FR-084 | P3 | Idea | 出现真实需求后支持多用户或多实例隔离 |
+
+## 18. 用户体验需求
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-UX-001 | P0 | Current | 常见操作可以通过自然语言完成 |
+| PRD-UX-002 | P0 | Current | 新增、更新、完成和删除后给予明确确认 |
+| PRD-UX-003 | P0 | Current | 无结果和空数据使用清晰提示 |
+| PRD-UX-004 | P0 | Current | 无到期提醒时不发送无意义通知 |
+| PRD-UX-005 | P0 | Current | 提醒文本包含足够上下文识别事项 |
+| PRD-UX-006 | P1 | Candidate | 破坏性操作在目标不明确时要求确认 |
+| PRD-UX-007 | P1 | Target | Setup 使用逐步向导并提供成功判定 |
+| PRD-UX-008 | P1 | Target | Simple Mode 不展示 Provider、Schema 等内部术语 |
+| PRD-UX-009 | P1 | Target | 错误提示说明发生了什么以及如何恢复 |
+| PRD-UX-010 | P1 | Target | 用户可以看到 Reminder 是否待发送、失败或已交付当前流程 |
+| PRD-UX-011 | P2 | Target | 主动建议可以关闭、忽略或撤销 |
+| PRD-UX-012 | P2 | Target | 查询和 Review 说明信息来源 |
+| PRD-UX-013 | P2 | Target | 高级功能不干扰默认简单流程 |
+
+## 19. 非功能需求
+
+### 19.1 数据可靠性
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-NFR-001 | P0 | Current | 主数据写入失败时不得伪报成功 |
+| PRD-NFR-002 | P0 | Current | Record ID 在当前数据和历史中保持唯一 |
+| PRD-NFR-003 | P0 | Current | View 生成失败不得修改主数据 |
+| PRD-NFR-004 | P0 | Current | 删除 Record 后 History 仍保留必要事件 |
+| PRD-NFR-005 | P1 | Candidate | Schema Migration 具备备份、预检和恢复 |
+| PRD-NFR-006 | P1 | Candidate | 主数据写入采用更安全的原子替换策略 |
+| PRD-NFR-007 | P1 | Candidate | 主数据与 History 写入失败不会留下未报告的不一致 |
+
+### 19.2 隐私与安全
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-NFR-008 | P0 | Current | 用户数据不进入公开源码仓库 |
+| PRD-NFR-009 | P0 | Current | Token、Webhook 和通知身份不进入公开文档或测试夹具 |
+| PRD-NFR-010 | P0 | Current | 测试默认使用合成数据和隔离目录 |
+| PRD-NFR-011 | P1 | Target | 用户可以查看数据位置和数据用途 |
+| PRD-NFR-012 | P1 | Target | 用户可以导出、备份和删除个人数据 |
+| PRD-NFR-013 | P2 | Target | 语义索引和外部模型调用具有明确隐私选项 |
+| PRD-NFR-014 | P2 | Target | 错误日志对凭据和敏感内容进行脱敏 |
+
+### 19.3 可用性
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-NFR-015 | P0 | Current | 核心 CRUD 在本地环境可用 |
+| PRD-NFR-016 | P0 | Current | Scheduler 无到期事项时静默运行 |
+| PRD-NFR-017 | P0 | Current | 通知失败具有可检查状态 |
+| PRD-NFR-018 | P1 | Target | 健康检查覆盖数据、Scheduler、Provider 和目标配置 |
+| PRD-NFR-019 | P1 | Target | 常见故障提供明确恢复步骤 |
+| PRD-NFR-020 | P1 | Target | Simple Mode 安装后无需手工编辑 JSON 即可使用 |
+
+### 19.4 性能与扩展
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-NFR-021 | P0 | Current | 当前个人数据规模下查询和写入不影响日常使用 |
+| PRD-NFR-022 | P1 | Candidate | 记录文件大小、读写时间和错误率可被测量 |
+| PRD-NFR-023 | P2 | Conditional | 只有实测证明 JSON 不足时才迁移 SQLite |
+| PRD-NFR-024 | P2 | Target | Notification Provider 可独立扩展 |
+| PRD-NFR-025 | P3 | Idea | Vector Index 可删除并从主数据重建 |
+
+### 19.5 兼容性与可维护性
+
+| ID | 优先级 | 状态 | 需求 |
+|---|---:|---|---|
+| PRD-NFR-026 | P0 | Current | 旧格式 ID 继续可读取 |
+| PRD-NFR-027 | P0 | Current | 产品、Skill 和 Schema 版本含义分离 |
+| PRD-NFR-028 | P1 | Candidate | v1.1 修复源码内部 `v2` 标识不一致 |
+| PRD-NFR-029 | P1 | Candidate | 每项生产行为变化先有失败测试 |
+| PRD-NFR-030 | P1 | Candidate | 每次发布同步更新文档、测试和版本说明 |
+| PRD-NFR-031 | P1 | Target | 内部模块拆分时保持现有 CLI 兼容或提供迁移方案 |
+
+## 20. 产品范围优先级
+
+### 20.1 P0：当前必须可靠
+
+- 原文保存；
+- CRUD；
+- 分类和标签；
+- 明确时间 Reminder；
+- JSON 主数据；
+- History；
+- Markdown View；
+- Migration 和基础 upgrade；
+- 当前 Feishu 提醒链路；
+- 隐私和数据隔离。
+
+P0 出现数据丢失、错误删除、重复提醒或凭据泄露时，应暂停新功能开发。
+
+### 20.2 P1：下一阶段候选
+
+- v1.1 结构化记忆；
+- 完整 Validator；
+- Migration 备份和恢复；
+- 版本一致性；
+- 更清晰的目标确认；
+- 数据导出；
+- Setup 和健康检查基础；
+- Notification Contract 基础准备。
+
+P1 不代表全部进入同一个版本。必须经过范围冻结。
+
+### 20.3 P2：中期增强
+
+- 关联记忆；
+- Weekly Review；
+- Provider 和 Routing；
+- 可靠 retry；
+- 完整 Simple/Personal Mode；
+- 条件触发的 SQLite。
+
+### 20.4 P3：远期探索
+
+- 语义检索；
+- Vector Memory；
+- 主动上下文 Recall；
+- 多用户或多实例产品化。
+
+## 21. 非目标与明确约束
+
+当前产品不做：
+
+- 把 Recall 变成企业协作任务系统；
+- 把 Markdown 变成第二事实来源；
+- 未经确认自动修改用户原文；
+- 未经确认自动创建高频或多渠道 Reminder；
+- 在没有真实需求时一次接入所有通知平台；
+- 只因记录数量达到纸面阈值就迁移数据库；
+- 以向量搜索替代结构化主数据；
+- 在公开仓库保存真实用户数据；
+- 用 AI 推断代替投递回执；
+- 把技术演示当作已完成产品能力；
+- 在缺少回归测试时进行大规模重写。
+
+## 22. 产品成功指标
+
+在没有足够真实数据前，不设未经验证的百分比目标。先建立可观测指标：
+
+### 22.1 使用价值
+
+- 用户持续记录频率；
+- 用户主动查询历史的频率；
+- 保存后再次被使用的 Record 数量；
+- Weekly Review 被阅读、关闭或忽略的情况；
+- 用户是否愿意继续使用 Recall。
+
+### 22.2 Reminder 价值
+
+- 到期 Reminder 数量；
+- 成功交付当前流程的数量；
+- 用户确认实收的数量；
+- 重复发送、漏发和失败数量；
+- 被取消或长期忽略的 Reminder；
+- 用户认为有价值或令人反感的提醒类型。
+
+### 22.3 数据质量
+
+- Validator 失败数量；
+- Migration 失败和恢复数量；
+- 重复 ID 或非法状态数量；
+- 无时区时间数量；
+- 错误关联被撤销数量；
+- 数据备份和恢复成功情况。
+
+### 22.4 产品化质量
+
+- 安装成功率；
+- Setup 完成时间；
+- 需要人工排障的配置步骤；
+- Simple Mode 用户遇到内部术语的次数；
+- 升级后无需手工修复的数据比例。
+
+正式指标阈值需要在获得真实使用基线后另行确认。
+
+## 23. 一个月复盘问题
+
+产品迭代应定期回答：
+
+1. 用户是否愿意持续向 Hermes 输入信息？
+2. 哪些内容最值得长期保存？
+3. 哪些信息后来被真正查找或使用？
+4. 哪些 Reminder 真正有价值？
+5. 哪些 Reminder 造成反感？
+6. 用户希望 Hermes 主动告诉自己什么？
+7. Recall 更像工具、助手，还是长期记忆层？
+8. 当前最痛的问题是输入、查询、提醒、配置还是数据管理？
+9. 是否已有真实证据支持下一个产品版本？
+
+复盘结论可以调整路线优先级，但必须保留变更原因。
+
+## 24. v1.0 产品验收标准
+
+v1.0 可以作为 Current 产品基线，需要满足：
+
+- 用户可以通过 Hermes 新增、查询、更新、完成和删除记录；
+- 原始 content 被保留；
+- 合法记录可以持久化到本地 JSON；
+- Markdown View 可从 JSON 生成；
+- 有明确时间的记录可以进入 Reminder 流程；
+- 无到期 Reminder 时调度静默；
+- 当前 Feishu 链路可以完成实际提醒闭环；
+- 操作具有 History Event；
+- 基础 Validator 可以检查关键约束；
+- 用户数据和凭据不进入公开仓库；
+- 已知限制被诚实记录。
+
+v1.0 验收不要求 Simple Mode、Weekly Review、多平台、SQLite 或语义搜索。
+
+## 25. v1.1 产品范围冻结条件
+
+v1.1 开始实现前必须确认：
+
+1. `memory_type` 的用户价值和枚举；
+2. `importance` 与 `priority` 的区别；
+3. `entities` 的结构和隐私边界；
+4. `related_ids` 的关系语义；
+5. 新字段是否由 AI 自动生成以及用户如何纠正；
+6. 旧数据的默认值和 Migration；
+7. Schema 版本变化；
+8. Markdown View、search 和 stats 如何展示新字段；
+9. v1.0 回归测试已经建立；
+10. 生产数据备份和回滚已经验证；
+11. 当前 `v2` 内部标识的统一方案；
+12. 哪些 P1 需求明确不进入 v1.1。
+
+在以上内容确认前，PRD-FR-021 至 PRD-FR-024 保持 Candidate。
+
+## 26. 需求追踪规则
+
+### 26.1 需求到实现
+
+每项进入开发的需求应能追踪到：
+
+```text
+PRD Requirement
+→ Architecture / Data Contract
+→ Test Case
+→ Implementation
+→ Test Result
+→ Release Note
+```
+
+### 26.2 状态变化
+
+需求状态变化需要满足：
+
+- Candidate → Planned：范围和价值已确认；
+- Planned → In Progress：前置文档、测试和备份已完成；
+- In Progress → Current：实现、Migration、测试、文档和人工验收完成；
+- 任意状态 → Deferred：记录暂缓原因；
+- Target/Idea 不得直接跳为 Current。
+
+### 26.3 需求变更
+
+变更需求时需要：
+
+- 说明用户问题；
+- 标记受影响需求 ID；
+- 评估数据和兼容性；
+- 更新测试；
+- 重大架构取舍记录 ADR；
+- 经用户确认后实施。
+
+## 27. 文档职责边界
+
+| 文档 | 负责内容 |
+|---|---|
+| `01-project-overview.md` | 项目总览、当前状态和版本口径 |
+| `02-system-architecture.md` | 模块、边界、数据流和目标架构 |
+| `03-data-model.md` | Schema、字段、状态和迁移原则 |
+| `04-development-roadmap.md` | 阶段顺序、依赖和完成标准 |
+| `05-test-plan.md` | 测试用例、门禁和报告格式 |
+| `06-product-requirements.md` | 用户、场景、产品需求和范围 |
+| `07-reminder-notification.md` | Reminder 与 Notification 专项 Contract |
+| `08-deployment-operations.md` | 安装、配置、备份、运维和发布 |
+
+PRD 定义用户价值和产品行为，不复制其他文档的内部实现细节。
+
+## 28. 当前结论
+
+Hermes Recall v1.0 已经形成可真实使用的智能备忘录和提醒基础，但尚未完成面向普通用户的产品化。
+
+当前最重要的产品任务不是立即增加最多功能，而是：
+
+- 继续验证真实使用价值；
+- 建立可重复测试；
+- 增强数据安全和 Migration；
+- 冻结 v1.1 结构化记忆 Contract；
+- 逐步降低普通用户的配置成本；
+- 在有真实需求后再扩展通知平台、数据库和语义召回。
+
+Simple Mode、Personal Mode、Notification Ecosystem 和 Personal AI Memory System 是明确方向，但只有完成需求确认、实现、测试和验收后才能成为 Current。
