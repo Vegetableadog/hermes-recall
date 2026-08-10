@@ -120,7 +120,7 @@ python <skill_dir>/scripts/validate_recall.py             # 数据完整性检�
 
 历史设计阶段曾经执行过 CRUD、分类、Reminder、Markdown View、Migration 和 Schema upgrade 的人工验收，但仓库当前还没有 `pytest` 测试目录、CI 或完整可重复回归套件。因此历史验收不能等同于当前自动化测试覆盖。
 
-完整测试范围、163 个测试用例、执行状态和发布门禁见 [测试计划](docs/05-test-plan.md)。真实 Feishu 端到端测试需要隔离测试数据和用户明确同意。
+完整测试范围、版本专项回归、执行状态和发布门禁见 [测试计划](docs/05-test-plan.md)。真实 Feishu 端到端测试需要隔离测试数据和用户明确同意。
 
 ## 目录结构
 
