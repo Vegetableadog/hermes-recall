@@ -1,8 +1,8 @@
----
+﻿---
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
-version: 1.0.3
+version: 1.1.0
 description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与提醒时间解析，经 recall.py 操作。
 ---
 
@@ -110,14 +110,14 @@ python recall.py stats                # 统计
 
 ## Pitfalls
 - `content` 必须保留用户原话，不总结、不修改；需要概括放 `metadata` 或另存 summary 字段
-- V1.0 的 update CLI 只有 `--content/--category/--tags/--status/--priority/--remind-at/--needs-reminder/--reminder-status`，**没有 `--note`/`--metadata` 入口**（metadata 字段存在但 CLI 写不到）——"最新进展/备注/等待反馈"需等 V1.1，或用 tags 临时承载
+- V1.1 已实现：`update` 支持 `--timeline-event/--waiting-for/--memory-type/--importance/--entities/--related-ids/--parent-id`；五状态（待处理/进行中/等待反馈/已完成/已归档）与 Reminder 七状态；`talk` 回响式交互（记一下/提醒我…/找…/完成…/删掉…/等…回复，删除需确认）；`--version` 统一显示产品/Skill/Schema 三版本
 - `recall.json` 顶层结构是 `{"version": ..., "recalls": [...]}`，不是 `records`；`list` 输出截断长内容且无 `--json` 参数，要读完整内容直接取 `data['recalls']` 字段
 - read_file 读 `docs/*.md` 可能误报 `Binary file`（编码问题），改用 `sed -n '起,止p'` 经 terminal 读取即可
-- V1.1 设计输入（用户真实使用总结）：四类处理规则（完结→已完成+备注；动作完成事未了→进行中+最新进展；等外部反馈→保持+等待反馈；持续关注→保持+关注），80%更新原记录/20%新建（判据=未来回顾是否同一件事）；多阶段演进可能重复多次推进（如 5月→8月 项目）；docs/Project_Context/ 存 V1.1 方案与用户反馈笔记
+- V1.1 设计输入（用户真实使用总结）：四类处理规则（完结→已完成+备注；动作完成事未了→进行中+最新进展；等外部反馈→保持+等待反馈；持续关注→保持+关注），80%更新原记录/20%新建（判据=未来回顾是否同一件事）；多阶段演进可能重复多次推进（如 5月→8月 项目）；V1.1 已完成并归档（docs/archive/upgrades/V1.1/）；Project_Context 与基线重叠文件已标 Superseded（权威见 01-08 正式基线）
 - 任务 `status`（待处理/进行中/已完成/已归档）与 `reminder_status`（pending/sent/failed/cancelled）是两个独立状态，不要混
 - 绝不直接编辑 recall.json / recall_view.md；所有修改走 recall.py
 - id 格式 `recall_YYYYMMDD_xxxxxx`（随机 6 位 hex），由脚本生成，不要自定义；旧版序号格式 id 保留不变；id/created_at 不可修改（update 无对应参数）
-- 版本分为产品基线 `v1.0`、Skill 发布版本 `1.0.3` 和数据 Schema `1.01`；三者含义不同，数据格式升级时更新 Schema、迁移逻辑和测试并运行 `recall.py upgrade`
+- 版本分为产品基线 `v1.1`、Skill 发布版本 `1.1.0` 和数据 Schema `2.0`；三者含义不同，数据格式升级时更新 Schema、迁移逻辑和测试并运行 `recall.py upgrade`
 - 提醒时间判断宁缺毋滥：没有明确时间就不设 needs_reminder
 - `reminder_status` Schema 允许值仅 pending/sent/failed/cancelled——非提醒记录的默认值也必须是 `pending`（无 "none" 值）；存量数据出现非法值用 `update <id> --reminder-status pending` 修复，手动取消提醒用 `--reminder-status cancelled`
 - git-bash 里调 Windows python 传脚本/文件路径须用 `E:/...` 形式；`/e/...` 会被 python 误解析成 `C:\e\...` 报 No such file

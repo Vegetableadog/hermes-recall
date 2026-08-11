@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="recall-ver-") as td:
     check("--version 退出码 0", r.returncode == 0, f"exit={r.returncode}")
     out = r.stdout
     check("产品版本 1.1", "产品版本: 1.1" in out, out.strip().replace("\n", " | "))
-    check("Skill 版本读取", "Skill 版本: 1.0.3" in out)
+    check("Skill 版本读取", "Skill 版本: 1.1.0" in out)
     check("Schema 版本 2.0", "Schema 版本: 2.0" in out)
 
     # 2. 子命令不受影响
@@ -54,7 +54,7 @@ check("description 无 v2 残留", 'description="Hermes Recall（回响）——
 with open(SKILL_MD, encoding="utf-8") as f:
     sm = f.read()
 m = re.search(r"^version:\s*([\w.]+)", sm, re.M)
-check("SKILL.md version 存在且为 1.0.3", m is not None and m.group(1) == "1.0.3", str(m.group(1) if m else None))
+check("SKILL.md version 存在且为 1.1.0", m is not None and m.group(1) == "1.1.0", str(m.group(1) if m else None))
 
 print()
 print("ALL PASS" if not fails else f"{len(fails)} FAILED: {fails}")

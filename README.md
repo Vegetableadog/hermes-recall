@@ -1,4 +1,4 @@
-# Hermes Recall（回响）
+﻿# Hermes Recall（回响）
 
 本地智能备忘录与个人记忆模块。用户说人话，Hermes 自动理解语义、分类、打标签、设提醒，并在指定时间通过飞书推送。JSON 为唯一事实来源，Markdown 仅作展示层。
 
@@ -28,7 +28,9 @@
 - 📊 **结构化存储**：JSON 单一事实源 + 完整历史记录（创建/修改/完成/删除/提醒全留痕）
 - 📄 **Markdown 展示层**：一键生成人类可读视图（recall_view.md / daily.md），展示层与数据层完全解耦
 - 🔄 **数据迁移**：旧 Markdown 备忘录一键迁入（source=migration 标记）
-- 📈 **版本化管理**：记录级 schema_version + upgrade 命令，为未来数据库迁移铺路
+- 📈 **版本化管理**：产品/Skill/Schema 三版本独立管理，`recall.py --version` 统一显示；upgrade 命令带备份/校验/恢复
+- 🧠 **结构化记忆**（V1.1）：memory 字段（记忆类型/重要程度/涉及实体/关联记录/等待对象）+ 时间线演化 + 父子回响关联，悬空关联自动标记
+- 💬 **回响式交互**（V1.1）：`talk` 自然语言入口——"记一下明天见邹总""还在等邹总回复""完成 recall_xxx"，删除等破坏性操作需确认（零写入保护）
 - 🔔 **飞书推送**：经 Hermes Gateway 通道直达飞书 DM（可选，两种通道）
 
 ## 安装
@@ -142,9 +144,9 @@ hermes-recall/
 
 Recall 分别管理三类版本：
 
-- 产品基线版本：`v1.0`，表示用户可使用的功能阶段；
-- Skill 发布版本：`1.0.3`，表示 GitHub/SkillHub 安装包版本；
-- 数据 Schema 版本：`1.01`，表示 `recall.json` 数据结构版本。
+- 产品基线版本：`v1.1`，表示用户可使用的功能阶段；
+- Skill 发布版本：`1.1.0`，表示 GitHub/SkillHub 安装包版本；
+- 数据 Schema 版本：`2.0`，表示 `recall.json` 数据结构版本。
 
 三者不要求每次同时变化。升级数据格式时，更新 Schema、迁移逻辑和测试，并运行 `recall.py upgrade`；只修改文档或发布说明时，不自动升级产品或 Schema 版本。
 

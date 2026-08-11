@@ -1,4 +1,4 @@
-# 发布与分发维护（GitHub + SkillHub）
+﻿# 发布与分发维护（GitHub + SkillHub）
 
 Hermes Recall 使用同一个 Git 仓库作为源码和正式文档的事实来源，并同步发布到 GitHub 与 SkillHub。
 
@@ -8,9 +8,9 @@ Hermes Recall 使用同一个 Git 仓库作为源码和正式文档的事实来�
 
 Recall 分别管理：
 
-- 产品基线版本，例如 `v1.0`；
-- Skill 发布版本，例如当前 `1.0.3`；
-- 数据 Schema 版本，例如当前 `1.01`。
+- 产品基线版本，例如 `v1.1`；
+- Skill 发布版本，例如当前 `1.1.0`；
+- 数据 Schema 版本，例如当前 `2.0`。
 
 SkillHub 使用 `SKILL.md` frontmatter 的 Skill 发布版本。它不等同于产品版本或数据 Schema。
 
@@ -86,7 +86,7 @@ Token 属于敏感凭据，不写入仓库、文档、Issue 或终端日志。
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
-version: 1.0.3
+version: 1.1.0
 description: Use when ...
 ```
 
