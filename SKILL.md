@@ -1,4 +1,4 @@
-﻿---
+---
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
