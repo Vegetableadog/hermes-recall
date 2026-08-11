@@ -104,7 +104,14 @@ python <skill_dir>/scripts/recall.py search 客户          # 关键字搜索
 
 # 状态管理
 python <skill_dir>/scripts/recall.py done <id>            # 标记完成
+python <skill_dir>/scripts/recall.py update <id> --status 等待反馈 --waiting-for 邹总   # 五状态 + 等待对象
 python <skill_dir>/scripts/recall.py delete <id>          # 删除（留历史）
+
+# 回响式交互（V1.1，自然语言）
+python <skill_dir>/scripts/recall.py talk 记一下明天见邹总
+python <skill_dir>/scripts/recall.py talk 还在等邹总回复
+python <skill_dir>/scripts/recall.py talk 完成 <id>
+python <skill_dir>/scripts/recall.py --version            # 产品/Skill/Schema 三版本
 
 # 视图与校验
 python <skill_dir>/scripts/recall.py view --output daily.md

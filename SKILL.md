@@ -1,4 +1,4 @@
----
+﻿---
 name: hermes-recall
 slug: hermes-recall
 displayName: Hermes Recall（回响）
@@ -77,16 +77,19 @@ python recall.py list                 # 查看全部（默认隐藏已归档）
 python recall.py list --category 工作待办
 python recall.py list --remind        # 只看带提醒的
 python recall.py get <id>             # 单条详情（JSON）
-python recall.py search <关键词>       # 全库搜索（内容+标签）
+python recall.py search <关键词>       # 全库搜索（内容+标签+涉及实体）
 python recall.py done <id>            # 标记已完成
-python recall.py update <id> --status 进行中 --tags a,b --remind-at ISO [--reminder-status pending|cancelled]   # 只更新 updated_at；id/created_at 不可修改
+python recall.py update <id> --status 进行中 --tags a,b --remind-at ISO --waiting-for 邹总 --timeline-event 进展 --memory-type task [--reminder-status pending|reminded|waiting_response|completed|archived|failed|cancelled]   # 五状态：待处理/进行中/等待反馈/已完成/已归档；只更新 updated_at；id/created_at 不可修改
 python recall.py delete <id>          # 删除（留历史）
 python recall.py view [--output daily.md]  # 生成 Markdown 视图，默认 recall_view.md（展示层，JSON 是唯一事实源）
 python recall.py due [--json]         # 查看到期未发提醒
 python recall.py send-reminders [--dry-run]   # 手动触发提醒发送
 python recall.py migrate [--file 旧文件.md] [--dry-run]   # 迁移旧 Markdown 到 JSON（source=migration）
-python recall.py upgrade              # Schema 升级：历史数据补齐 schema_version 等字段
+python recall.py upgrade              # Schema v1→v2 迁移：自动备份→迁移（sent→reminded）→校验
+python recall.py restore <备份文件>        # 从备份恢复（迁移/故障回滚）
+python recall.py --version                # 显示产品/Skill/Schema 三版本
 python recall.py stats                # 统计
+python recall.py talk 记一下明天见邹总      # 回响式自然语言入口：记一下…/提醒我…/找…/完成 recall_xxx/删掉…/还在等邹总回复（删除需确认）
 ```
 
 ## 提醒系统（统一 Scheduler，不逐条建 cron）
