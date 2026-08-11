@@ -28,7 +28,7 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
 - 本 skill 自带完整工具：`scripts/recall.py`（核心 CLI）、`scripts/recall_scheduler.py`（提醒调度包装）、`scripts/validate_recall.py`（数据校验）；Python 3.10+ 标准库即可，无第三方依赖
 - 本 skill 为可分发包：README.md（安装/配置/上手）与 LICENSE（MIT）随包；分发化改造与 GitHub 发布流程见 skill `hermes-skill-publishing`
 - 正式项目文档：`docs/正式基线/01-项目总览.md` 至 `docs/正式基线/08-部署与运维.md`；项目唯一入口见 `docs/00_项目导航.md`；重大架构决策见 `docs/adr/README.md`；历史原稿见 `docs/archive/README.md`
-- **文档治理规范**：`docs/Project_Context/个人项目升级流程与文档留存规范.md`（V1.2 已生效：版本归 git、状态归文档、文件名只承担职责；动数据一刀切分级；元规范不走五件套；设计后须模拟推演）。改项目文档/推进升级前先读它；方法论详见 skill `project-documentation-governance`
+- **文档治理规范**：`docs/Project_Context/个人项目升级流程与文档留存规范.md`（V1.3 已生效：版本归 git、状态归文档、文件名只承担职责；动数据一刀切分级；元规范不走五件套；设计后须模拟推演；基线收尾统一校准）。改项目文档/推进升级前先读它；方法论详见 skill `project-documentation-governance`
 - 数据目录解析优先级：
   1. 环境变量 `HERMES_RECALL_DIR`（显式指定，推荐）
   2. 本机既有部署 `E:\HermesData\recall`（Windows 兼容早期版本）
