@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Hermes Recall（回响）—— 本地智能备忘录核心模块 v2。
+"""Hermes Recall（回响）—— 本地智能备忘录核心模块。
 
 架构: JSON 为唯一事实来源, Markdown 仅作展示层, 统一 Scheduler 负责提醒。
 
@@ -56,6 +56,17 @@ VIEW_FILE = RECALL_DIR / "recall_view.md"
 CONFIG_FILE = RECALL_DIR / "config.json"
 
 SCHEMA_VERSION = "2.0"  # Schema v2：V1.1 结构化记忆（产品/Skill/Schema 版本治理见切片 7）
+PRODUCT_VERSION = "1.1"  # 产品版本（Recall V1.1）
+
+
+def _read_skill_version() -> str:
+    """从 SKILL.md frontmatter 读取 Skill 版本（单一事实源）。"""
+    try:
+        p = Path(__file__).resolve().parent.parent / "SKILL.md"
+        m = re.search(r"^version:\s*([\w.]+)", p.read_text(encoding="utf-8"), re.M)
+        return m.group(1) if m else "unknown"
+    except Exception:
+        return "unknown"
 
 CATEGORIES = ["工作待办", "生活日常", "想法灵感", "学习笔记", "收藏"]
 STATUSES = ["待处理", "进行中", "等待反馈", "已完成", "已归档"]
@@ -914,7 +925,9 @@ def cmd_stats(args) -> int:
 # ---------- 入口 ----------
 
 def main():
-    parser = argparse.ArgumentParser(description="Hermes Recall（回响）v2")
+    parser = argparse.ArgumentParser(description="Hermes Recall（回响）——本地智能备忘录")
+    parser.add_argument("--version", action="version",
+                        version=f"Hermes Recall（回响）\n产品版本: {PRODUCT_VERSION}\nSkill 版本: {_read_skill_version()}\nSchema 版本: {SCHEMA_VERSION}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_add = sub.add_parser("add", help="记录一条")
