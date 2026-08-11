@@ -25,8 +25,9 @@
 
 - 📝 **语义理解**：自动分类（工作待办/生活日常/想法灵感/学习笔记/收藏）+ 自动标签，理解上下文而非关键词匹配
 - ⏰ **智能提醒**：识别"明天上午9点""8月20日前"等明确时间，到期自动推送；无明确时间不打扰（宁缺毋滥）
+- 🔄 **生命周期管理**（V1.1）：记录五状态（待处理/进行中/等待反馈/已完成/已归档）+ Reminder 七状态独立追踪（pending→reminded→waiting_response…），"还在等邹总回复"等等待对象自动联动
 - 📊 **结构化存储**：JSON 单一事实源 + 完整历史记录（创建/修改/完成/删除/提醒全留痕）
-- 📄 **Markdown 展示层**：一键生成人类可读视图（recall_view.md / daily.md），展示层与数据层完全解耦
+- 📄 **Markdown 展示层**：一键生成人类可读视图（recall_view.md / daily.md），展示层与数据层完全解耦；V1.1 起视图含时间线演化、父子回响链与悬空关联标记
 - 🔄 **数据迁移**：旧 Markdown 备忘录一键迁入（source=migration 标记）
 - 📈 **版本化管理**：产品/Skill/Schema 三版本独立管理，`recall.py --version` 统一显示；upgrade 命令带备份/校验/恢复
 - 🧠 **结构化记忆**（V1.1）：memory 字段（记忆类型/重要程度/涉及实体/关联记录/等待对象）+ 时间线演化 + 父子回响关联，悬空关联自动标记
@@ -100,7 +101,7 @@ python <skill_dir>/scripts/recall.py add "周三之前完成产品 PRD" --catego
 # 查询
 python <skill_dir>/scripts/recall.py list                 # 全部（默认隐藏已归档）
 python <skill_dir>/scripts/recall.py list --category 工作待办
-python <skill_dir>/scripts/recall.py search 客户          # 关键字搜索
+python <skill_dir>/scripts/recall.py search 客户          # 搜索（内容+标签+涉及实体）
 
 # 状态管理
 python <skill_dir>/scripts/recall.py done <id>            # 标记完成
