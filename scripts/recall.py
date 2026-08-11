@@ -57,9 +57,11 @@ CONFIG_FILE = RECALL_DIR / "config.json"
 SCHEMA_VERSION = "1.01"  # 统一版本号：项目版本 = 顶层 version = 记录级 schema_version（V1.01）
 
 CATEGORIES = ["工作待办", "生活日常", "想法灵感", "学习笔记", "收藏"]
-STATUSES = ["待处理", "进行中", "已完成", "已归档"]
+STATUSES = ["待处理", "进行中", "等待反馈", "已完成", "已归档"]
 PRIORITIES = ["low", "normal", "high"]
-REMINDER_STATUSES = ["pending", "sent", "failed", "cancelled"]
+REMINDER_STATUSES = ["pending", "reminded", "waiting_response", "completed", "archived", "failed", "cancelled"]
+MEMORY_TYPES = ["task", "idea", "fact", "preference", "experience", "unknown"]
+IMPORTANCES = ["low", "normal", "high"]
 
 # 无 AI 参数时的启发式兜底分类（正常流程由 Hermes 语义判断后传入）
 _KEYWORD_CATEGORY = [
@@ -185,7 +187,17 @@ def cmd_add(args) -> int:
         "updated_at": now_iso(),
         "source": args.source or "user",
         "metadata": {},
+        "timeline": [{"date": now_iso(), "event": "创建回响"}],
     }
+    if args.parent_id:
+        rec["parent_id"] = args.parent_id
+    if args.memory_type or args.importance or args.entities or args.related_ids:
+        rec["memory"] = {
+            "memory_type": args.memory_type or "unknown",
+            "importance": args.importance or "normal",
+            "entities": [e.strip() for e in args.entities.split(",") if e.strip()] if args.entities else [],
+            "related_ids": [i.strip() for i in args.related_ids.split(",") if i.strip()] if args.related_ids else [],
+        }
     data.setdefault("recalls", []).append(rec)
     save_data(data)
     log_history("create", rid, {"content": content, "category": category})
@@ -240,7 +252,7 @@ def cmd_list(args) -> int:
         print("[回响] 没有符合条件的记录")
         return 0
     recalls.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-    flags = {"待处理": "○", "进行中": "◐", "已完成": "●", "已归档": "×"}
+    flags = {"待处理": "○", "进行中": "◐", "等待反馈": "◑", "已完成": "●", "已归档": "×"}
     rows = []
     for r in recalls:
         remind = r.get("remind_at", "")[:16].replace("T", " ") if r.get("needs_reminder") else "—"
@@ -285,6 +297,10 @@ def cmd_search(args) -> int:
     return 0
 
 
+def _append_timeline(r: dict, event: str) -> None:
+    r.setdefault("timeline", []).append({"date": now_iso(), "event": event})
+
+
 def cmd_update(args) -> int:
     data = load_data()
     r = find_recall(data, args.id)
@@ -305,6 +321,15 @@ def cmd_update(args) -> int:
         if args.status not in STATUSES:
             print(f"[错误] status 必须为: {'/'.join(STATUSES)}", file=sys.stderr)
             return 2
+        before_status = r.get("status")
+        if args.status != before_status:
+            _append_timeline(r, f"状态更新：{before_status}→{args.status}")
+            # waiting_for 联动：离开等待反馈时先固化到 timeline 再清空
+            mem = r.get("memory") or {}
+            if before_status == "等待反馈" and mem.get("waiting_for"):
+                wf = mem["waiting_for"]
+                r["timeline"][-1]["event"] += f"（等待对象：{wf}）"
+                mem.pop("waiting_for", None)
         r["status"] = args.status
     if args.priority:
         if args.priority not in PRIORITIES:
@@ -321,7 +346,29 @@ def cmd_update(args) -> int:
             r["reminder_status"] = "pending"
     if args.needs_reminder is not None:
         r["needs_reminder"] = args.needs_reminder.lower() == "true"
+    if args.parent_id is not None:
+        r["parent_id"] = args.parent_id or None
+    if args.memory_type or args.importance or args.entities or args.related_ids:
+        mem = r.setdefault("memory", {})
+        if args.memory_type:
+            mem["memory_type"] = args.memory_type
+        if args.importance:
+            mem["importance"] = args.importance
+        if args.entities is not None:
+            mem["entities"] = [e.strip() for e in args.entities.split(",") if e.strip()]
+        if args.related_ids is not None:
+            mem["related_ids"] = [i.strip() for i in args.related_ids.split(",") if i.strip()]
+    if args.waiting_for:
+        # 显式设置等待对象：自动进入等待反馈状态并写入
+        if r.get("status") != "等待反馈":
+            _append_timeline(r, f"状态更新：{r.get('status')}→等待反馈")
+            r["status"] = "等待反馈"
+        r.setdefault("memory", {})["waiting_for"] = args.waiting_for
+    if args.timeline_event:
+        _append_timeline(r, args.timeline_event)
     if args.reminder_status:
+        if args.reminder_status != r.get("reminder_status"):
+            _append_timeline(r, f"提醒状态：{r.get('reminder_status')}→{args.reminder_status}")
         r["reminder_status"] = args.reminder_status
     r["updated_at"] = now_iso()  # 只更新 updated_at；id / created_at 不可修改
     save_data(data)
@@ -337,6 +384,13 @@ def cmd_done(args) -> int:
         print(f"[回响] 未找到 {args.id}", file=sys.stderr)
         return 1
     before = r.get("status")
+    if before != "已完成":
+        _append_timeline(r, f"状态更新：{before}→已完成")
+        mem = r.get("memory") or {}
+        if mem.get("waiting_for"):
+            wf = mem["waiting_for"]
+            r["timeline"][-1]["event"] += f"（等待对象：{wf}）"
+            mem.pop("waiting_for", None)
     r["status"] = "已完成"
     r["updated_at"] = now_iso()
     save_data(data)
@@ -646,6 +700,11 @@ def main():
     p_add.add_argument("--remind-at", default=None, help="ISO 8601 提醒时间")
     p_add.add_argument("--priority", default=None, choices=PRIORITIES)
     p_add.add_argument("--source", default=None)
+    p_add.add_argument("--parent-id", default=None, help="父回响 ID（不覆盖，建立关联）")
+    p_add.add_argument("--memory-type", default=None, choices=MEMORY_TYPES, help=f"记忆类型: {'/'.join(MEMORY_TYPES)}")
+    p_add.add_argument("--importance", default=None, choices=IMPORTANCES, help=f"记忆重要度: {'/'.join(IMPORTANCES)}")
+    p_add.add_argument("--entities", default=None, help="涉及实体，逗号分隔")
+    p_add.add_argument("--related-ids", default=None, help="关联记录 ID，逗号分隔")
 
     p_list = sub.add_parser("list", help="查看记录")
     p_list.add_argument("--category", default=None)
@@ -669,6 +728,13 @@ def main():
     p_update.add_argument("--remind-at", default=None)
     p_update.add_argument("--needs-reminder", default=None, choices=["true", "false"])
     p_update.add_argument("--reminder-status", default=None, choices=REMINDER_STATUSES, help="提醒状态（如 cancelled 取消提醒）")
+    p_update.add_argument("--parent-id", default=None, help="父回响 ID（传空清空）")
+    p_update.add_argument("--memory-type", default=None, choices=MEMORY_TYPES)
+    p_update.add_argument("--importance", default=None, choices=IMPORTANCES)
+    p_update.add_argument("--entities", default=None, help="涉及实体，逗号分隔")
+    p_update.add_argument("--related-ids", default=None, help="关联记录 ID，逗号分隔")
+    p_update.add_argument("--waiting-for", default=None, help="设置等待反馈对象（自动进入等待反馈状态）")
+    p_update.add_argument("--timeline-event", default=None, help="追加一条 timeline 事件")
 
     p_done = sub.add_parser("done", help="标记完成")
     p_done.add_argument("id")
