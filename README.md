@@ -8,14 +8,14 @@
 
 正式项目文档位于 `docs/`：
 
-- [项目总览与当前状态](docs/01-项目总览.md)
-- [系统架构](docs/02-系统架构.md)
-- [数据模型](docs/03-数据模型.md)
-- [开发路线图](docs/04-开发路线图.md)
-- [测试计划](docs/05-测试计划.md)
-- [产品需求](docs/06-产品需求.md)
-- [Reminder 与 Notification 设计](docs/07-提醒与通知.md)
-- [部署与运维](docs/08-部署与运维.md)
+- [项目总览与当前状态](docs/正式基线/01-项目总览.md)
+- [系统架构](docs/正式基线/02-系统架构.md)
+- [数据模型](docs/正式基线/03-数据模型.md)
+- [开发路线图](docs/正式基线/04-开发路线图.md)
+- [测试计划](docs/正式基线/05-测试计划.md)
+- [产品需求](docs/正式基线/06-产品需求.md)
+- [Reminder 与 Notification 设计](docs/正式基线/07-提醒与通知.md)
+- [部署与运维](docs/正式基线/08-部署与运维.md)
 - [架构决策记录](docs/adr/README.md)
 - [历史设计原稿归档](docs/archive/README.md)
 
@@ -87,7 +87,7 @@ skillhub install hermes-recall --namespace user_deef713e --dir <HERMES_HOME>/ski
 hermes cron create "every 15m" --script recall_scheduler.py --no-agent --deliver local
 ```
 
-平台投递、显式目标和本机部署步骤见 [部署与运维](docs/08-部署与运维.md)。
+平台投递、显式目标和本机部署步骤见 [部署与运维](docs/正式基线/08-部署与运维.md)。
 
 ## 快速上手
 
@@ -120,7 +120,7 @@ python <skill_dir>/scripts/validate_recall.py             # 数据完整性检�
 
 历史设计阶段曾经执行过 CRUD、分类、Reminder、Markdown View、Migration 和 Schema upgrade 的人工验收，但仓库当前还没有 `pytest` 测试目录、CI 或完整可重复回归套件。因此历史验收不能等同于当前自动化测试覆盖。
 
-完整测试范围、版本专项回归、执行状态和发布门禁见 [测试计划](docs/05-测试计划.md)。真实 Feishu 端到端测试需要隔离测试数据和用户明确同意。
+完整测试范围、版本专项回归、执行状态和发布门禁见 [测试计划](docs/正式基线/05-测试计划.md)。真实 Feishu 端到端测试需要隔离测试数据和用户明确同意。
 
 ## 目录结构
 
@@ -131,7 +131,7 @@ hermes-recall/
 ├── LICENSE
 ├── references/
 │   └── feishu-gateway.md       # 飞书通道排障指南
-├── docs/                       # 正式项目文档、ADR 和历史原稿归档
+├── docs/                       # 正式项目文档、升级档案、ADR 和历史原稿归档
 └── scripts/
     ├── recall.py               # 核心 CLI（纯标准库）
     ├── recall_scheduler.py     # 提醒调度包装（cron no_agent 用）
