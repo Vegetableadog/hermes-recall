@@ -301,7 +301,7 @@ Reminder、Delivery 和 Attempt 的 Target Contract 可以先设计，但是否�
 
 ### 10.3 对测试
 
-`05-test-plan.md` 需要覆盖：
+`05-测试计划.md` 需要覆盖：
 
 - 原子写入候选方案；
 - 主数据与 History 不一致；
@@ -312,17 +312,17 @@ Reminder、Delivery 和 Attempt 的 Target Contract 可以先设计，但是否�
 
 ### 10.4 对运维
 
-`08-deployment-operations.md` 继续以文件备份、校验和和隔离恢复为主。引入数据库后必须创建新的备份和恢复 ADR 或更新决策链。
+`08-部署与运维.md` 继续以文件备份、校验和和隔离恢复为主。引入数据库后必须创建新的备份和恢复 ADR 或更新决策链。
 
 ## 11. 相关文档
 
-- `../01-project-overview.md`
-- `../02-system-architecture.md`
-- `../03-data-model.md`
-- `../04-development-roadmap.md`
-- `../05-test-plan.md`
-- `../07-reminder-notification.md`
-- `../08-deployment-operations.md`
+- `../01-项目总览.md`
+- `../02-系统架构.md`
+- `../03-数据模型.md`
+- `../04-开发路线图.md`
+- `../05-测试计划.md`
+- `../07-提醒与通知.md`
+- `../08-部署与运维.md`
 
 ## 12. 验收结论
 

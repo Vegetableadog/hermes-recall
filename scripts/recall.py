@@ -195,6 +195,33 @@ def cmd_add(args) -> int:
     return 0
 
 
+def _display_width(text: str) -> int:
+    """近似计算终端显示宽度：中文/全角字符按 2 列计。"""
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(ch) in "WFA" else 1 for ch in str(text))
+
+
+def _fit_cell(value, width: int) -> str:
+    """按终端列宽截断并补空格，避免中文表格错位。"""
+    text = str(value or "")
+    if _display_width(text) > width:
+        suffix = "…"
+        while _display_width(text + suffix) > width:
+            text = text[:-1]
+        text += suffix
+    return text + " " * max(0, width - _display_width(text))
+
+
+def _print_table(rows, headers, widths) -> None:
+    sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+    print(sep)
+    print("| " + " | ".join(_fit_cell(h, w) for h, w in zip(headers, widths)) + " |")
+    print(sep)
+    for row in rows:
+        print("| " + " | ".join(_fit_cell(v, w) for v, w in zip(row, widths)) + " |")
+    print(sep)
+
+
 def cmd_list(args) -> int:
     data = load_data()
     recalls = data.get("recalls", [])
@@ -213,12 +240,23 @@ def cmd_list(args) -> int:
         print("[回响] 没有符合条件的记录")
         return 0
     recalls.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    flags = {"待处理": "○", "进行中": "◐", "已完成": "●", "已归档": "×"}
+    rows = []
     for r in recalls:
-        flag = {"待处理": "○", "进行中": "◐", "已完成": "●", "已归档": "×"}.get(r.get("status"), "○")
-        remind = f" ⏰{r['remind_at']}" if r.get("needs_reminder") else ""
-        tags = f" #{' #'.join(r.get('tags', []))}" if r.get("tags") else ""
-        print(f"{flag} [{r['id']}] ({r.get('category')}) {r.get('content')}{remind}{tags}")
-    print(f"\n共 {len(recalls)} 条")
+        remind = r.get("remind_at", "")[:16].replace("T", " ") if r.get("needs_reminder") else "—"
+        tags = " ".join("#" + t for t in r.get("tags", [])) or "—"
+        rows.append([
+            flags.get(r.get("status"), "○"),
+            r.get("id", "").replace("recall_", "")[:15],
+            r.get("category", ""),
+            r.get("priority", "normal"),
+            r.get("content", ""),
+            remind,
+            tags,
+        ])
+    _print_table(rows, ["状态", "编号", "分类", "优先级", "内容", "提醒", "标签"],
+                 [4, 15, 8, 6, 42, 16, 24])
+    print(f"共 {len(recalls)} 条（○待处理 ◐进行中 ●已完成；默认隐藏已归档）")
     return 0
 
 

@@ -28,14 +28,14 @@
 
 | 历史主题 | 当前正式文档 |
 |---|---|
-| 项目定位与当前状态 | `../01-project-overview.md` |
-| 系统边界与分层 | `../02-system-architecture.md` |
-| 当前 Schema 与 Target 数据方向 | `../03-data-model.md` |
-| 版本和阶段路线 | `../04-development-roadmap.md` |
-| 测试体系 | `../05-test-plan.md` |
-| 用户、场景和产品需求 | `../06-product-requirements.md` |
-| Reminder 与 Notification | `../07-reminder-notification.md` |
-| 安装、运维和发布 | `../08-deployment-operations.md` |
+| 项目定位与当前状态 | `../01-项目总览.md` |
+| 系统边界与分层 | `../02-系统架构.md` |
+| 当前 Schema 与 Target 数据方向 | `../03-数据模型.md` |
+| 版本和阶段路线 | `../04-开发路线图.md` |
+| 测试体系 | `../05-测试计划.md` |
+| 用户、场景和产品需求 | `../06-产品需求.md` |
+| Reminder 与 Notification | `../07-提醒与通知.md` |
+| 安装、运维和发布 | `../08-部署与运维.md` |
 | 重大架构取舍 | `../adr/README.md` |
 
 ## 冲突处理顺序

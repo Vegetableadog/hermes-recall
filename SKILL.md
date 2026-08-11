@@ -27,7 +27,7 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
 ## 安装与配置
 - 本 skill 自带完整工具：`scripts/recall.py`（核心 CLI）、`scripts/recall_scheduler.py`（提醒调度包装）、`scripts/validate_recall.py`（数据校验）；Python 3.10+ 标准库即可，无第三方依赖
 - 本 skill 为可分发包：README.md（安装/配置/上手）与 LICENSE（MIT）随包；分发化改造与 GitHub 发布流程见 skill `hermes-skill-publishing`
-- 正式项目文档：`docs/01-project-overview.md` 至 `docs/08-deployment-operations.md`；重大架构决策见 `docs/adr/README.md`；历史原稿见 `docs/archive/README.md`
+- 正式项目文档：`docs/01-项目总览.md` 至 `docs/08-部署与运维.md`；重大架构决策见 `docs/adr/README.md`；历史原稿见 `docs/archive/README.md`
 - 数据目录解析优先级：
   1. 环境变量 `HERMES_RECALL_DIR`（显式指定，推荐）
   2. 本机既有部署 `E:\HermesData\recall`（Windows 兼容早期版本）
@@ -47,6 +47,12 @@ description: Use when 记/查/搜备忘录（回响）。AI 做语义分类与�
    ```
    （`<skill_dir>` 为本 skill 所在目录；本机为 `E:\HermesAgent\skills\productivity\hermes-recall`）
 3. 看到 `[回响] 已记录 recall_YYYYMMDD_xxxxxx` 即成功。
+
+## 收藏类记录（用户发「收藏 URL」）
+- **先验证链接再记录**（用户明确要求过「检查链接」）：curl 查 HTTP 状态（`curl -sS -L -o /dev/null -w '%{http_code}' URL`，git-bash 下 `curl: (23)` 写 /dev/null 噪音可忽略，用 `-I` HEAD 复核）；GitHub 仓库用 `gh repo view owner/repo --json nameWithOwner,isArchived,licenseInfo,stargazerCount,url` 核验；第三方服务类站点（模型中转/检测站）用 agent-reach 的 Exa 搜索公开评价与隐私条款
+- 报告验证结果（可达/失效/风险提示）后再调用 add；URL 失效或站方隐私政策有明显风险（如中转站会留存请求/响应内容、第三方检测站数据非官方认证）时先提示用户
+- 同一 URL 先 `recall.py search` 查重，避免重复收藏
+- 用户原话里的 URL 必须原样保留在 content
 
 ## 分类规则（固定五类）
 - **工作待办**：项目任务、工作安排、截止日期、开会、报告、客户
@@ -89,7 +95,7 @@ python recall.py stats                # 统计
    ```
    hermes cron create "every 15m" --script recall_scheduler.py --no-agent --deliver <平台>:<chat_id>
    ```
-   （无提醒平台可先 `--deliver local`，配置飞书后再改；完整步骤见 `docs/08-deployment-operations.md`）
+   （无提醒平台可先 `--deliver local`，配置飞书后再改；完整步骤见 `docs/08-部署与运维.md`）
 2. 调度语义：脚本输出友好提醒文本 → cron deliver 投递 → 置 `reminder_status=sent`；无到期提醒时零输出（静默）
 3. 筛选条件：`needs_reminder=true` AND `remind_at <= 当前时间` AND `reminder_status=pending`
 4. **投递验证**：cron `Result: ok` 不代表送达——查 cron 的 `last_delivery_error`（null 才算送达）；失败时 `update <id> --reminder-status pending` 重置重试
@@ -103,6 +109,10 @@ python recall.py stats                # 统计
 
 ## Pitfalls
 - `content` 必须保留用户原话，不总结、不修改；需要概括放 `metadata` 或另存 summary 字段
+- V1.0 的 update CLI 只有 `--content/--category/--tags/--status/--priority/--remind-at/--needs-reminder/--reminder-status`，**没有 `--note`/`--metadata` 入口**（metadata 字段存在但 CLI 写不到）——"最新进展/备注/等待反馈"需等 V1.1，或用 tags 临时承载
+- `recall.json` 顶层结构是 `{"version": ..., "recalls": [...]}`，不是 `records`；`list` 输出截断长内容且无 `--json` 参数，要读完整内容直接取 `data['recalls']` 字段
+- read_file 读 `docs/*.md` 可能误报 `Binary file`（编码问题），改用 `sed -n '起,止p'` 经 terminal 读取即可
+- V1.1 设计输入（用户真实使用总结）：四类处理规则（完结→已完成+备注；动作完成事未了→进行中+最新进展；等外部反馈→保持+等待反馈；持续关注→保持+关注），80%更新原记录/20%新建（判据=未来回顾是否同一件事）；多阶段演进可能重复多次推进（如 5月→8月 项目）；docs/Project_Context/ 存 V1.1 方案与用户反馈笔记
 - 任务 `status`（待处理/进行中/已完成/已归档）与 `reminder_status`（pending/sent/failed/cancelled）是两个独立状态，不要混
 - 绝不直接编辑 recall.json / recall_view.md；所有修改走 recall.py
 - id 格式 `recall_YYYYMMDD_xxxxxx`（随机 6 位 hex），由脚本生成，不要自定义；旧版序号格式 id 保留不变；id/created_at 不可修改（update 无对应参数）
