@@ -54,7 +54,7 @@ HISTORY_FILE = RECALL_DIR / "recall_history.json"
 VIEW_FILE = RECALL_DIR / "recall_view.md"
 CONFIG_FILE = RECALL_DIR / "config.json"
 
-SCHEMA_VERSION = "1.01"  # 统一版本号：项目版本 = 顶层 version = 记录级 schema_version（V1.01）
+SCHEMA_VERSION = "2.0"  # Schema v2：V1.1 结构化记忆（产品/Skill/Schema 版本治理见切片 7）
 
 CATEGORIES = ["工作待办", "生活日常", "想法灵感", "学习笔记", "收藏"]
 STATUSES = ["待处理", "进行中", "等待反馈", "已完成", "已归档"]
@@ -641,13 +641,28 @@ def _version_tuple(v) -> tuple:
 
 
 def cmd_upgrade(args) -> int:
-    """Schema 版本升级：为历史记录补齐/提升 schema_version 至当前版本。
+    """Schema v1→v2 迁移：备份 → 预检 → 迁移（sent→reminded、版本提升）→ 校验。
 
-    原则：不修改 content / category / 提醒状态；只补缺失字段；
-    id 缺失时生成新 id；created_at 缺失时补齐（之后不可改）；
-    schema_version 低于当前版本时升级（版本化迁移逻辑）。
+    原则：不修改 content / category；缺失 memory / timeline 不补（合法，不得因读取写回）；
+    reminder_status 映射：sent→reminded（七状态枚举），其余值保留。
     """
+    import subprocess as _sp
     data = load_data()
+    # 预检：id 唯一
+    ids = [r.get("id") for r in data.get("recalls", [])]
+    if len(ids) != len(set(ids)):
+        print("[错误] 预检失败：存在重复 id，停止迁移", file=sys.stderr)
+        return 1
+    # 备份
+    ts = now_iso().replace(":", "-").replace("+", "-")
+    backup_path = DATA_FILE.with_name(f"recall.backup-{ts}.json")
+    backup_path.write_text(DATA_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    hist_path = RECALL_DIR / "recall_history.json"
+    hist_backup = None
+    if hist_path.exists():
+        hist_backup = hist_path.with_name(f"recall_history.backup-{ts}.json")
+        hist_backup.write_text(hist_path.read_text(encoding="utf-8"), encoding="utf-8")
+    # 迁移
     changed = 0
     cur = _version_tuple(SCHEMA_VERSION)
     for r in data.get("recalls", []):
@@ -657,6 +672,8 @@ def cmd_upgrade(args) -> int:
         sv = r.get("schema_version")
         if not sv or _version_tuple(sv) < cur:
             r["schema_version"] = SCHEMA_VERSION
+        if r.get("reminder_status") == "sent":
+            r["reminder_status"] = "reminded"
         if not r.get("created_at"):
             r["created_at"] = now_iso()
         if not r.get("updated_at"):
@@ -667,7 +684,29 @@ def cmd_upgrade(args) -> int:
     old_ver = data.get("version", "?")
     data["version"] = SCHEMA_VERSION
     save_data(data)
-    print(f"[回响] Schema 升级完成: {changed} 条记录已升级（顶层 version {old_ver} -> {SCHEMA_VERSION}）")
+    print(f"[回响] 迁移完成: {changed} 条记录已升级（顶层 version {old_ver} -> {SCHEMA_VERSION}）")
+    print(f"[回响] 备份: {backup_path}")
+    if hist_backup:
+        print(f"[回响] 历史备份: {hist_backup}")
+    # 迁移后校验
+    vr = _sp.run([sys.executable, str(Path(__file__).resolve().parent / "validate_recall.py")],
+                 capture_output=True, text=True, encoding="utf-8")
+    print(vr.stdout.strip())
+    if vr.returncode != 0:
+        print("[回响] ⚠ 迁移后校验未通过，可用 restore 恢复备份", file=sys.stderr)
+        return 1
+    print("[回响] 迁移后校验通过 ✓")
+    return 0
+
+
+def cmd_restore(args) -> int:
+    """从备份文件恢复数据（复制覆盖 recall.json）。"""
+    src = Path(args.backup_file)
+    if not src.exists():
+        print(f"[错误] 备份不存在: {src}", file=sys.stderr)
+        return 1
+    DATA_FILE.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"[回响] 已从备份恢复: {src} -> {DATA_FILE}")
     return 0
 
 
@@ -755,7 +794,9 @@ def main():
     p_migrate.add_argument("--file", default=None, help="指定旧文件路径（支持列表格式）")
     p_migrate.add_argument("--dry-run", action="store_true")
 
-    sub.add_parser("upgrade", help="Schema 升级：历史数据自动补齐新字段")
+    sub.add_parser("upgrade", help="Schema v1→v2 迁移：备份→迁移（sent→reminded）→校验")
+    p_restore = sub.add_parser("restore", help="从备份文件恢复数据")
+    p_restore.add_argument("backup_file", help="备份文件路径（如 recall.backup-*.json）")
 
     sub.add_parser("stats", help="统计")
 
@@ -765,7 +806,7 @@ def main():
         "search": cmd_search, "update": cmd_update, "done": cmd_done,
         "delete": cmd_delete, "view": cmd_view, "due": cmd_due,
         "send-reminders": cmd_send_reminders, "migrate": cmd_migrate,
-        "upgrade": cmd_upgrade, "stats": cmd_stats,
+        "upgrade": cmd_upgrade, "restore": cmd_restore, "stats": cmd_stats,
     }
     return cmds[args.cmd](args)
 
