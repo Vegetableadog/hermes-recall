@@ -153,7 +153,7 @@ hermes-recall/
 Recall 分别管理三类版本：
 
 - 产品基线版本：`v1.1`，表示用户可使用的功能阶段；
-- Skill 发布版本：`1.1.0`，表示 GitHub/SkillHub 安装包版本；
+- Skill 发布版本：`1.1.1`，表示 GitHub/SkillHub 安装包版本；
 - 数据 Schema 版本：`2.0`，表示 `recall.json` 数据结构版本。
 
 三者不要求每次同时变化。升级数据格式时，更新 Schema、迁移逻辑和测试，并运行 `recall.py upgrade`；只修改文档或发布说明时，不自动升级产品或 Schema 版本。
