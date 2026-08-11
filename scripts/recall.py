@@ -27,6 +27,7 @@
 import argparse
 import json
 import os
+import re
 import secrets
 import sys
 import urllib.request
@@ -737,6 +738,158 @@ def cmd_restore(args) -> int:
     return 0
 
 
+def _parse_relative_time(text: str):
+    """解析 明天/后天/今天/下周一..日/X点 → ISO 8601（+08:00）。无时间词返回 None。"""
+    from datetime import timedelta
+    has_day = any(w in text for w in ["明天", "后天", "今天", "今晚", "明早", "下周"])
+    m = re.search(r"(\d{1,2})\s*点", text)
+    if not has_day and not m:
+        return None
+    now = datetime.now().astimezone()
+    hour = int(m.group(1)) if m else 9
+    if ("下午" in text or "晚上" in text) and hour < 12:
+        hour += 12
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if "后天" in text:
+        day = today + timedelta(days=2)
+    elif "明天" in text or "明早" in text:
+        day = today + timedelta(days=1)
+    elif "今天" in text or "今晚" in text:
+        day = today
+    elif "下周" in text:
+        wd = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+        target = None
+        for w, d in wd.items():
+            if f"下周{w}" in text:
+                target = d
+                break
+        if target is None:
+            target = 0
+        day = today + timedelta(days=(target - today.weekday()) % 7 + 7)
+    else:
+        day = today + timedelta(days=1)
+    return day.replace(hour=hour, minute=0, second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def parse_intent(text: str):
+    """回响式自然语言 → (intent, args)。规则解析（Hermes 层负责语义判断，本机兜底）。
+
+    返回 (None, None) 表示未识别（零写入）。
+    """
+    from types import SimpleNamespace
+    t = text.strip()
+    m = re.search(r"(recall_[0-9a-f_]+|r\d+)", t)
+    empty = dict(content=None, category=None, tags=None, status=None, priority=None,
+                 remind_at=None, needs_reminder=None, reminder_status=None,
+                 parent_id=None, memory_type=None, importance=None, entities=None,
+                 related_ids=None, waiting_for=None, timeline_event=None)
+
+    # 删除（确认门在 cmd_talk）
+    if re.search(r"删|移除|丢掉", t):
+        return ("delete", SimpleNamespace(id=m.group(1))) if m else (None, None)
+    # 完成
+    if re.search(r"^(完成|搞定|办完|做完了|标记完成|完成了)", t) and m:
+        return "done", SimpleNamespace(id=m.group(1))
+    # 等待反馈（更新已有记录）
+    if re.search(r"等", t) and not re.search(r"(待办|等待列表)", t):
+        m2 = re.search(r"等\s*([^\s，。,.]+)", t)
+        obj = m2.group(1) if m2 else ""
+        for suf in ["的消息", "的回复", "回复", "消息", "审批", "反馈", "结果", "通知", "资料", "处理", "确认", "安排", "答复", "电话"]:
+            if obj.endswith(suf):
+                obj = obj[:-len(suf)]
+                break
+        if obj and not obj.startswith("待"):
+            a = SimpleNamespace(id=m.group(1) if m else None, **empty)
+            a.waiting_for = obj
+            return "waiting", a
+    # 归档
+    if "归档" in t and m:
+        a = SimpleNamespace(id=m.group(1), **empty)
+        a.status = "已归档"
+        return "update_status", a
+    # 更新状态
+    st = None
+    for s in ["等待反馈", "进行中", "待处理", "已完成"]:
+        if re.search(rf"(改为|改成|标记为|设置为|设为)\s*{s}", t):
+            st = s
+            break
+    if st and m:
+        a = SimpleNamespace(id=m.group(1), **empty)
+        a.status = st
+        return "update_status", a
+    # 新增（带提醒）
+    rt = _parse_relative_time(t)
+    if re.search(r"^(提醒我|提醒|记得|记一下)", t) or rt:
+        content = re.sub(r"^(提醒我|提醒|记得|记一下)", "", t).strip()
+        if not content:
+            return None, None
+        if rt is None:
+            rt = _parse_relative_time("明天")
+        a = SimpleNamespace(content=[content], remind_at=rt, category=None, tags=None,
+                            priority=None, source="talk", parent_id=None, memory_type=None,
+                            importance=None, entities=None, related_ids=None)
+        return "add", a
+    # 新增（普通）
+    if re.search(r"^(记|记录|添加|新增|备注|收藏)", t):
+        content = re.sub(r"^(记一下|记录一下|记录|添加|新增|备注|收藏|记)", "", t).strip()
+        if not content:
+            return None, None
+        a = SimpleNamespace(content=[content], remind_at=None, category=None, tags=None,
+                            priority=None, source="talk", parent_id=None, memory_type=None,
+                            importance=None, entities=None, related_ids=None)
+        return "add", a
+    # 搜索
+    if re.search(r"(找|查|搜索|看看|有没有|什么时候)", t):
+        kw = re.sub(r"^(找找|找一下|找|查一下|查|搜索|看看|有没有|什么时候)", "", t).strip()
+        if not kw:
+            return None, None
+        return "search", SimpleNamespace(keyword=[kw])
+    # 列表
+    if re.search(r"(列表|所有|待办|全部|清单|回响)", t):
+        return "list", SimpleNamespace(category=None, status=None, remind=False, all=True)
+    return None, None
+
+
+def cmd_talk(args) -> int:
+    """回响式交互入口：自然语言 → Intent → 走既有 Core 命令（不建第二写入逻辑）。"""
+    text = " ".join(args.text)
+    intent, a = parse_intent(text)
+    if intent is None:
+        print(f"[回响] 未能理解：「{text}」\n        试试：记一下… / 提醒我明天… / 找… / 完成 recall_xxx / 删掉 recall_xxx / 等…回复", file=sys.stderr)
+        return 2
+    if intent == "add":
+        return cmd_add(a)
+    if intent == "search":
+        return cmd_search(a)
+    if intent == "list":
+        return cmd_list(a)
+    if intent == "done":
+        return cmd_done(a)
+    if intent == "update_status":
+        return cmd_update(a)
+    if intent == "waiting":
+        if not a.id:
+            print("[回响] 等待反馈需指定已有记录 id（如：完成 recall_xxx 后说「等邹总回复」前先找到它）", file=sys.stderr)
+            return 2
+        return cmd_update(a)
+    if intent == "delete":
+        if not args.yes:
+            if sys.stdin.isatty():
+                try:
+                    ans = input(f"[回响] 确认删除 {a.id}？[y/N] ").strip().lower()
+                except EOFError:
+                    print(f"[回响] 删除 {a.id} 已取消（无法交互确认，零写入）", file=sys.stderr)
+                    return 1
+                if ans != "y":
+                    print("[回响] 已取消（零写入）")
+                    return 0
+            else:
+                print(f"[回响] 删除 {a.id} 需确认：非交互环境请使用 --yes 跳过确认", file=sys.stderr)
+                return 1
+        return cmd_delete(a)
+    return 2
+
+
 def cmd_stats(args) -> int:
     data = load_data()
     recalls = data.get("recalls", [])
@@ -830,6 +983,10 @@ def main():
     p_restore = sub.add_parser("restore", help="从备份文件恢复数据")
     p_restore.add_argument("backup_file", help="备份文件路径（如 recall.backup-*.json）")
 
+    p_talk = sub.add_parser("talk", help="回响式自然语言入口（记一下…/提醒我…/找…/完成…/删掉…）")
+    p_talk.add_argument("text", nargs="+", help="自然语言描述")
+    p_talk.add_argument("--yes", action="store_true", help="跳过删除等确认门（非交互环境）")
+
     sub.add_parser("stats", help="统计")
 
     args = parser.parse_args()
@@ -839,6 +996,7 @@ def main():
         "delete": cmd_delete, "view": cmd_view, "due": cmd_due,
         "send-reminders": cmd_send_reminders, "migrate": cmd_migrate,
         "upgrade": cmd_upgrade, "restore": cmd_restore, "stats": cmd_stats,
+        "talk": cmd_talk,
     }
     return cmds[args.cmd](args)
 
