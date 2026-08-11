@@ -286,7 +286,8 @@ def cmd_search(args) -> int:
     data = load_data()
     kw = " ".join(args.keyword)
     hits = [r for r in data.get("recalls", [])
-            if kw in r.get("content", "") or any(kw in t for t in r.get("tags", []))]
+            if kw in r.get("content", "") or any(kw in t for t in r.get("tags", []))
+            or kw in " ".join((r.get("memory") or {}).get("entities", []))]
     if not hits:
         print(f"[回响] 未找到包含「{kw}」的记录")
         return 0
@@ -427,7 +428,7 @@ def cmd_view(args) -> int:
         "> 本文件为展示层，禁止手工修改；请通过 recall.py 操作数据",
         "",
         "## 汇总",
-        f"- 总记录: {len(recalls)} | 待处理: {sum(1 for r in recalls if r.get('status') == '待处理')} | 进行中: {sum(1 for r in recalls if r.get('status') == '进行中')} | 已完成: {sum(1 for r in recalls if r.get('status') == '已完成')}",
+        f"- 总记录: {len(recalls)} | 待处理: {sum(1 for r in recalls if r.get('status') == '待处理')} | 进行中: {sum(1 for r in recalls if r.get('status') == '进行中')} | 等待反馈: {sum(1 for r in recalls if r.get('status') == '等待反馈')} | 已完成: {sum(1 for r in recalls if r.get('status') == '已完成')}",
         f"- 待提醒: {sum(1 for r in recalls if r.get('needs_reminder'))}",
         "",
     ]
@@ -443,7 +444,33 @@ def cmd_view(args) -> int:
             remind = f" ⏰ {r['remind_at']}" if r.get("needs_reminder") else ""
             tags = f" `{' '.join('#' + t for t in r.get('tags', []))}`" if r.get("tags") else ""
             created = r.get("created_at", "")[:16].replace("T", " ")
-            lines.append(f"- {done} {r.get('content')} {state}{remind}{tags} · {created}")
+            meta = ""
+            mem = r.get("memory")
+            all_ids = {q.get("id") for q in data.get("recalls", [])}
+            if mem:
+                bits = []
+                if mem.get("memory_type") and mem["memory_type"] != "unknown":
+                    bits.append(f"📌{mem['memory_type']}")
+                if mem.get("importance") and mem["importance"] != "normal":
+                    bits.append(f"🔥{mem['importance']}")
+                if mem.get("entities"):
+                    bits.append("@" + "/".join(mem["entities"]))
+                if mem.get("waiting_for"):
+                    bits.append(f"⏳等{mem['waiting_for']}")
+                if mem.get("related_ids"):
+                    bad = [x for x in mem["related_ids"] if x not in all_ids]
+                    if bad:
+                        bits.append("⚠悬空:" + "/".join(bad))
+                if bits:
+                    meta = " " + " ".join(bits)
+            if r.get("parent_id"):
+                meta += f" ⬆{r['parent_id']}"
+            lines.append(f"- {done} {r.get('content')} {state}{remind}{tags}{meta} · {created}")
+            tl = r.get("timeline")
+            if tl:
+                for ev in tl:
+                    d = (ev.get("date") or "")[:16].replace("T", " ")
+                    lines.append(f"  - 🕐 {d} {ev.get('event')}")
         lines.append("")
     target.write_text("\n".join(lines), encoding="utf-8")
     print(f"[回响] 视图已生成: {target}")
@@ -720,6 +747,11 @@ def cmd_stats(args) -> int:
     from collections import Counter
     for cat, n in Counter(r.get("category") for r in recalls).most_common():
         print(f"  {cat}: {n}")
+    mtypes = Counter((r.get("memory") or {}).get("memory_type") for r in recalls)
+    if any(mtypes):
+        print("记忆类型:")
+        for mt, n in mtypes.most_common():
+            print(f"  {mt or '(未标注)'}: {n}")
     hist = load_history().get("events", [])
     if hist:
         print(f"历史事件: {len(hist)} 条")
