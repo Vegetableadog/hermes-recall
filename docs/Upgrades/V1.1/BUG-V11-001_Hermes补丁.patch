@@ -1,0 +1,34 @@
+diff --git a/agent/conversation_loop.py b/agent/conversation_loop.py
+index 0437d3b..e4d38f8 100644
+--- a/agent/conversation_loop.py
++++ b/agent/conversation_loop.py
+@@ -2848,7 +2848,7 @@ def run_conversation(
+                             continue
+                         # Terminal — flush buffered retry trace so user sees what happened.
+                         agent._flush_status_buffer()
+-                        agent._emit_status(f"❌ Max retries ({max_retries}) exceeded for invalid responses. Giving up.")
++                        agent._vprint(f"{agent.log_prefix}   ❌ Max retries ({max_retries}) exceeded for invalid responses. Giving up.", force=True)
+                         logger.error("%sInvalid API response after %d retries.", agent.log_prefix, max_retries)
+                         agent._persist_session(messages, conversation_history)
+                         _final_response = f"Invalid API response after {max_retries} retries: {_failure_hint}"
+@@ -5522,7 +5522,7 @@ def run_conversation(
+                     _final_summary = agent._summarize_api_error(api_error)
+                     _billing_guidance = ""
+                     if classified.reason == FailoverReason.billing:
+-                        agent._emit_status(f"❌ Billing or credits exhausted — {_final_summary}")
++                        agent._vprint(f"{agent.log_prefix}   ❌ Billing or credits exhausted — {_final_summary}", force=True)
+                         _billing_guidance = _billing_or_entitlement_message(
+                             capability="model access",
+                             provider=_provider,
+@@ -5537,9 +5537,9 @@ def run_conversation(
+                             model=_model,
+                         )
+                     elif is_rate_limited:
+-                        agent._emit_status(f"❌ Rate limited after {max_retries} retries — {_final_summary}")
++                        agent._vprint(f"{agent.log_prefix}   ❌ Rate limited after {max_retries} retries — {_final_summary}", force=True)
+                     else:
+-                        agent._emit_status(f"❌ API failed after {max_retries} retries — {_final_summary}")
++                        agent._vprint(f"{agent.log_prefix}   ❌ API failed after {max_retries} retries — {_final_summary}", force=True)
+                     agent._vprint(f"{agent.log_prefix}   💀 Final error: {_final_summary}", force=True)
+ 
+                     # Detect SSE stream-drop pattern (e.g. "Network
