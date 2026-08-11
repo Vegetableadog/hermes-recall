@@ -1,4 +1,4 @@
-# Hermes Recall 历史设计原稿
+﻿# Hermes Recall 历史设计原稿
 
 > 文档状态：Historical
 >
@@ -23,6 +23,12 @@
 | `Hermes_Recall_v1.4_多平台通知生态升级提示词文档.docx` | Notification 专项输入 | Provider、Identity、Routing、多渠道、配置和健康检查方向 |
 | `Hermes_Recall_产品化方向与多模式架构升级文档.docx` | 产品化专项输入 | Experience Layer、Simple Mode、Personal Mode、Setup Wizard 和产品化路线 |
 | `Hermes_Recall_未来升级路线与迭代提示词规划文档.docx` | 路线规划输入 | v1.1-v3.0、Weekly Review、智能 Reminder、SQLite 和 Vector Memory 方向 |
+
+## 升级归档
+
+| 目录 | 升级 | 归档日期 | 说明 |
+|---|---|---|---|
+| `upgrades/V1.1/` | V1.1 结构化记忆与回响式交互 | 2026-08-12 | 升级总览（Completed）/综合与决策/实施与验收/归档说明/输入材料/补丁；当前版本 v1.1（见 `../正式基线/01-项目总览.md`） |
 
 ## 当前规范对应关系
 
