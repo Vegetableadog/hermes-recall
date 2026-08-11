@@ -33,6 +33,7 @@ def run(args, env_dir):
 NLU = [
     # add 普通
     ("记一下明天见邹总", "add", lambda a: a.content[0].startswith("明天见邹总") and a.remind_at is not None),
+    ("记一下整理项目复盘", "add", lambda a: a.content[0].startswith("整理项目复盘") and a.remind_at is None),  # 无时间词：宁缺毋滥，不默认提醒
     ("记录：买牛奶", "add", lambda a: "买牛奶" in a.content[0]),
     ("添加待办：交报表", "add", lambda a: "交报表" in a.content[0]),
     ("收藏这篇文章", "add", lambda a: a.content[0] == "这篇文章"),
@@ -90,6 +91,9 @@ with tempfile.TemporaryDirectory(prefix="recall-nlu-") as td:
     r = run(["talk", "记一下", "测试回响"], td)
     check("talk 记一下 → add 成功", r.returncode == 0 and "已记录" in r.stdout, r.stdout[:40])
     data = json.load(open(os.path.join(td, "recall.json"), encoding="utf-8"))
+    rec1 = data["recalls"][0]
+    check("talk 记一下无时间词 → 不设提醒", rec1.get("remind_at") is None and rec1.get("needs_reminder") is not True,
+          f"remind_at={rec1.get('remind_at')}")
     rid = data["recalls"][0]["id"]
     # remind
     r = run(["talk", "提醒我", "明天9点", "测试提醒"], td)

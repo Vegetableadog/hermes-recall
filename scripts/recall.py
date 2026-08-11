@@ -349,14 +349,21 @@ def cmd_update(args) -> int:
             print(f"[错误] priority 必须为: {'/'.join(PRIORITIES)}", file=sys.stderr)
             return 2
         r["priority"] = args.priority
-    if args.remind_at:
-        if parse_remind_at(args.remind_at) is None:
+    if args.remind_at is not None:
+        if args.remind_at == "":
+            # 显式清除提醒（--remind-at ""）：宁缺毋滥，清除后不再打扰
+            r["remind_at"] = None
+            r["needs_reminder"] = False
+            if r.get("reminder_status"):
+                _append_timeline(r, "提醒已清除")
+        elif parse_remind_at(args.remind_at) is None:
             print(f"[错误] remind_at 需为 ISO 8601 格式", file=sys.stderr)
             return 2
-        r["remind_at"] = args.remind_at
-        r["needs_reminder"] = True
-        if not r.get("reminder_status"):
-            r["reminder_status"] = "pending"
+        else:
+            r["remind_at"] = args.remind_at
+            r["needs_reminder"] = True
+            if not r.get("reminder_status"):
+                r["reminder_status"] = "pending"
     if args.needs_reminder is not None:
         r["needs_reminder"] = args.needs_reminder.lower() == "true"
     if args.parent_id is not None:
@@ -834,8 +841,7 @@ def parse_intent(text: str):
         content = re.sub(r"^(提醒我|提醒|记得|记一下)", "", t).strip()
         if not content:
             return None, None
-        if rt is None:
-            rt = _parse_relative_time("明天")
+        # 无明确时间词时 remind_at 保持 None（宁缺毋滥，不默认"明天"）
         a = SimpleNamespace(content=[content], remind_at=rt, category=None, tags=None,
                             priority=None, source="talk", parent_id=None, memory_type=None,
                             importance=None, entities=None, related_ids=None)
