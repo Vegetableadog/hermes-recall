@@ -1,8 +1,8 @@
-# ADR-001：当前阶段继续使用 JSON 作为主存储
+﻿# ADR-001：当前阶段继续使用 JSON 作为主存储
 
 - 状态：Accepted
 - 决策日期：2026-08-10
-- 适用产品基线：v1.0
+- 适用产品基线：v1.1
 - 当前数据 Schema：1.01
 - Supersedes：无
 - Superseded by：无
